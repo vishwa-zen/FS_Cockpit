@@ -1,0 +1,202 @@
+"""ServiceNow API client."""
+import httpx
+import structlog
+
+from app.clients.base_cleint import BaseClient
+from app.exceptions.custom_exceptions import ExternalServiceError
+
+# logging configuration
+logger = structlog.get_logger(__name__)
+
+class ServiceNowClient(BaseClient):
+    """Client to interact with ServiceNow API."""
+    def __init__(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        timeout: int =  30):
+        
+        self.base_url = base_url
+        basic_auth = httpx.BasicAuth(username, password)
+        self.timeout = timeout
+        
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        
+        self.default_headers = headers
+
+        super().__init__(base_url, timeout, auth=basic_auth, auth_headers=headers)
+        
+        
+    async def fetch_user_sys_id_by_username(self, username: str) -> str:
+        """Fetches the ServiceNow `sys_id` for a user given their username."""
+        endpoint = "/api/now/table/sys_user"
+        params = {"user_name": username}
+        logger.debug("Fetching user sys_id from ServiceNow", username=username)
+        try:
+            response = await self.get(endpoint, params=params)
+        except httpx.HTTPError as e:
+            # translate HTTP errors into domain exception for middleware
+            status = None
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                try:
+                    status = resp.status_code
+                except (AttributeError, TypeError) as exc:
+                    status = None
+                    logger.warning("servicenow_client.status_code_failed", error=str(exc))
+            raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
+
+        results = response.get("result", [])
+        if results:
+            logger.debug("User found", username=username, sys_id=results[0].get("sys_id", ""))
+            return results[0].get("sys_id", "")
+        return ""
+        
+    async def fetch_incidents_by_technician(
+        self,
+        technician_username: str,
+        active: bool = True,
+        limit: int = 50,
+        sysparm_display_value: str = "all",
+        sysparm_exclude_reference_link: bool = True,
+        sysparm_fields: str = "sys_id,number,short_description,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+        cmdb_ci_name: str | None = None,
+    ) -> dict:
+        """
+        Retrieve incidents assigned to a specific technician with extended query params.
+
+        Args:
+            technician_username (str): The username of the technician.
+            active (bool): Filter for active incidents.
+            limit (int): Max number of incidents to return.
+            sysparm_display_value (str): Display value mode for ServiceNow.
+            sysparm_exclude_reference_link (bool): Exclude reference links in response.
+            sysparm_fields (str): Comma-separated list of fields to return.
+        Returns:
+            dict: A dictionary containing incident information.
+        """
+        # Resolve the technician username to a ServiceNow sys_id first
+        tech_sys_id = await self.fetch_user_sys_id_by_username(technician_username)
+        if not tech_sys_id:
+            logger.debug("Technician not found in ServiceNow", technician_username=technician_username)
+            return {"result": []}
+
+        endpoint = "/api/now/table/incident"
+        # Build sysparm_query for assigned_to and active
+        sysparm_query = f"assigned_to={tech_sys_id}"
+        if active:
+            sysparm_query += "^active=true"
+        # Optionally filter by device name (cmdb_ci.name)
+        if cmdb_ci_name:
+            # Escape or ensure value safe - we keep basic usage
+            sysparm_query += f"^cmdb_ci.name={cmdb_ci_name}"
+
+        params = {
+            "sysparm_query": sysparm_query,
+            "sysparm_limit": str(limit),
+            "sysparm_display_value": sysparm_display_value,
+            "sysparm_exclude_reference_link": str(sysparm_exclude_reference_link).lower(),
+            "sysparm_fields": sysparm_fields,
+        }
+        logger.debug(
+            "Fetching incidents from ServiceNow",
+            technician_username=technician_username,
+            tech_sys_id=tech_sys_id,
+            params=params,
+        )
+        try:
+            response = await self.get(endpoint, params=params)
+        except httpx.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
+        return response
+    
+    async def fetch_incidents_by_user(self, user_name: str, _fields: list[str] | None = None, limit: int | None = 50) -> dict:
+        """
+        Retrieves up to 50 active incidents raised by the specified user.
+
+        Args:
+            user_name (str): The user_name (login) of the user.
+        Returns:
+            dict: The raw API response containing active incident records raised by the user.
+        """
+        # Resolve the user_name to a ServiceNow sys_id first
+        caller_sys_id = await self.fetch_user_sys_id_by_username(user_name)
+        if not caller_sys_id:
+            logger.debug("User not found in ServiceNow", user_name=user_name)
+            return {"result": []}
+
+        endpoint = "/api/now/table/incident"
+        params = {
+            "caller_id": caller_sys_id,
+            "active": "true",
+            "sysparm_limit": 50,
+            "sysparm_fields": _fields or "sys_id,number,short_description,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+        }
+        # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
+        if limit is not None:
+            params["sysparm_limit"] = limit
+        logger.debug("Fetching incidents from ServiceNow", user_name=user_name, caller_sys_id=caller_sys_id)
+        try:
+            response = await self.get(endpoint, params=params)
+        except httpx.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
+        return response
+    
+    async def fetch_incidents_by_device(self, device_name: str, _fields: list[str] | None = None, limit: int | None = None) -> dict:
+        """
+        Retrieve incidents related to a specific device.
+
+        Args:
+            device_name (str): The name of the device.
+        Returns:
+            dict: A dictionary containing incident information.
+        """
+        endpoint = "/api/now/table/incident"
+        params = {"cmdb_ci.name": device_name, "sysparm_fields": _fields or "sys_id,number,short_description,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on"}
+        # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
+        if limit is not None:
+            params["sysparm_limit"] = limit
+        logger.debug("Fetching incidents from ServiceNow", device_name=device_name)
+        try:
+            response = await self.get(endpoint, params=params)
+        except httpx.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
+        return response
+    
+    async def fetch_incident_details(self, incident_number: str, _fields: list[str] | None = None) -> dict:
+        """
+        Retrieve details of a specific incident.
+
+        Args:
+            incident_number (str): The number of the incident.
+        Returns:
+            dict: A dictionary containing incident details.
+        """
+        endpoint = "/api/now/table/incident"
+        params = {
+            "number": incident_number,
+        }
+        # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
+        logger.debug("Fetching incident details from ServiceNow", incident_number=incident_number)
+        try:
+            response = await self.get(endpoint, params=params)
+        except httpx.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
+        results = response.get("result", [])
+        if results:
+            logger.debug("Incident found", incident_number=incident_number)
+            return results[0]
+        logger.debug("Incident not found", incident_number=incident_number)
+        return {}
