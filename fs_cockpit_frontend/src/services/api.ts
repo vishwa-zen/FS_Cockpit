@@ -122,20 +122,117 @@ export const getTimeAgo = (dateString: string): string => {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
 
   if (diffMins < 60) {
     return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
   } else if (diffHours < 24) {
     return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
-  } else if (diffDays < 30) {
+  } else if (diffDays < 7) {
     return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+  } else if (diffWeeks < 4) {
+    return `${diffWeeks} week${diffWeeks !== 1 ? "s" : ""} ago`;
   } else {
-    return date.toLocaleDateString();
+    return `${diffMonths} month${diffMonths !== 1 ? "s" : ""} ago`;
   }
 };
 
 // API endpoints
 export const ticketsAPI = {
+  // Search incidents by username
+  getUserIncidents: async (userName: string) => {
+    try {
+      const response = await apiClient.get<ApiResponse<IncidentsData>>(
+        `/servicenow/user/${encodeURIComponent(userName)}/incidents`
+      );
+      if (response.data.success) {
+        // Transform the data to match our UI format
+        const transformedData = response.data.data.incidents.map(
+          (incident) => ({
+            id: incident.incidentNumber,
+            sysId: incident.sysId,
+            status: incident.status,
+            statusColor: getStatusColor(incident.status),
+            title: incident.shortDescription,
+            device: incident.deviceName || "N/A",
+            priority: incident.priority,
+            priorityColor: getPriorityColor(incident.priority),
+            time: getTimeAgo(incident.openedAt),
+            assignedTo: incident.assignedTo,
+            createdBy: incident.createdBy,
+            callerId: incident.callerId,
+            openedAt: incident.openedAt,
+            lastUpdatedAt: incident.lastUpdatedAt,
+            impact: incident.impact,
+            active: incident.active,
+          })
+        );
+        return {
+          data: transformedData,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Failed to fetch user incidents"
+      );
+    } catch (error: any) {
+      console.error("API Error (user incidents):", error);
+      return {
+        data: [],
+        success: false,
+        message: error?.message || "API error",
+      };
+    }
+  },
+
+  // Search incidents by device name
+  getIncidentsByDevice: async (deviceName: string) => {
+    try {
+      const response = await apiClient.get<ApiResponse<IncidentsData>>(
+        `/servicenow/device/${encodeURIComponent(deviceName)}/incidents`
+      );
+      if (response.data.success) {
+        // Transform the data to match our UI format
+        const transformedData = response.data.data.incidents.map(
+          (incident) => ({
+            id: incident.incidentNumber,
+            sysId: incident.sysId,
+            status: incident.status,
+            statusColor: getStatusColor(incident.status),
+            title: incident.shortDescription,
+            device: incident.deviceName || "N/A",
+            priority: incident.priority,
+            priorityColor: getPriorityColor(incident.priority),
+            time: getTimeAgo(incident.openedAt),
+            assignedTo: incident.assignedTo,
+            createdBy: incident.createdBy,
+            callerId: incident.callerId,
+            openedAt: incident.openedAt,
+            lastUpdatedAt: incident.lastUpdatedAt,
+            impact: incident.impact,
+            active: incident.active,
+          })
+        );
+        return {
+          data: transformedData,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Failed to fetch device incidents"
+      );
+    } catch (error: any) {
+      console.error("API Error (device incidents):", error);
+      return {
+        data: [],
+        success: false,
+        message: error?.message || "API error",
+      };
+    }
+  },
   getMyTickets: async () => {
     try {
       const response = await apiClient.get<ApiResponse<IncidentsData>>(
@@ -154,7 +251,7 @@ export const ticketsAPI = {
             device: incident.deviceName || "N/A",
             priority: incident.priority,
             priorityColor: getPriorityColor(incident.priority),
-            time: getTimeAgo(incident.lastUpdatedAt),
+            time: getTimeAgo(incident.openedAt),
             assignedTo: incident.assignedTo,
             createdBy: incident.createdBy,
             callerId: incident.callerId,

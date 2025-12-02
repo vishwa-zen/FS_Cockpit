@@ -4,6 +4,7 @@
 """
 from typing import List, Optional
 import structlog
+from app.utils.incident_utils import IncidentUtils
 from app.clients.servicenow_client import ServiceNowClient
 from app.config.settings import get_settings
 from app.schemas.incident import IncidentDTO
@@ -65,12 +66,11 @@ class ServiceNowService:
 
         results = raw.get("result", [])
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
+        # sort by openedAt (newest first)
+        dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
         return dtos
 
-    def _extract_str(self, val):
-        if isinstance(val, dict):
-            return val.get("display_value") or val.get("value") or ""
-        return val if val is not None else ""
+    # Extract string fields using the shared utility
 
     def _map_incident_to_dto(self, rec: dict) -> IncidentDTO:
         # Extract all fields as strings, using display_value if present
@@ -91,21 +91,21 @@ class ServiceNowService:
         else:
             status = state_val or ""
         # Prefer explicit cmdb_ci.name field if present (ServiceNow may return it as a flat field)
-        device_name = self._extract_str(rec.get("cmdb_ci.name")) or self._extract_str(rec.get("cmdb_ci"))
+        device_name = IncidentUtils.extract_str(rec.get("cmdb_ci.name")) or IncidentUtils.extract_str(rec.get("cmdb_ci"))
         return IncidentDTO(
-            sysId=self._extract_str(rec.get("sys_id")),
-            incidentNumber=self._extract_str(rec.get("number")),
-            shortDescription=self._extract_str(rec.get("short_description")),
-            priority=self._extract_str(rec.get("priority")),
+            sysId=IncidentUtils.extract_str(rec.get("sys_id")),
+            incidentNumber=IncidentUtils.extract_str(rec.get("number")),
+            shortDescription=IncidentUtils.extract_str(rec.get("short_description")),
+            priority=IncidentUtils.extract_str(rec.get("priority")),
             impact=impact_val,
             status=status,
             active=rec.get("active") in (True, "true", "True", "1", 1),
-            assignedTo=self._extract_str(rec.get("assigned_to")),
+            assignedTo=IncidentUtils.extract_str(rec.get("assigned_to")),
             deviceName=device_name,
-            createdBy=self._extract_str(rec.get("sys_created_by")),
-            callerId=self._extract_str(rec.get("caller_id")),
-            openedAt=self._extract_str(rec.get("opened_at")),
-            lastUpdatedAt=self._extract_str(rec.get("sys_updated_on")),
+            createdBy=IncidentUtils.extract_str(rec.get("sys_created_by")),
+            callerId=IncidentUtils.extract_str(rec.get("caller_id")),
+            openedAt=IncidentUtils.extract_str(rec.get("opened_at")),
+            lastUpdatedAt=IncidentUtils.extract_str(rec.get("sys_updated_on")),
         )
     
     async def fetch_incidents_by_user(self, user_name: str) -> List[IncidentDTO]:
@@ -129,6 +129,8 @@ class ServiceNowService:
 
         results = raw.get("result", [])
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
+        # sort by openedAt (newest first)
+        dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
         return dtos
     
     async def fetch_incidents_by_device(self, device_name: str) -> List[IncidentDTO]:
@@ -152,6 +154,8 @@ class ServiceNowService:
 
         results = raw.get("result", [])
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
+        # sort by openedAt (newest first)
+        dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
         return dtos
         
     async def fetch_incident_details(self, incident_number: str) -> Optional[IncidentDTO]:
@@ -180,4 +184,6 @@ class ServiceNowService:
         if results:
             return self._map_incident_to_dto(results[0])
         return None
+
+    # Sorting and parsing helpers moved to `app.utils.incident_utils.IncidentUtils` for reuse
         
