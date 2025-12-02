@@ -3,7 +3,12 @@ import { Card, CardContent } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Progress } from "../../../../components/ui/progress";
-import { ActionsIcon, IncidentIcon, KnowledgeIcon } from "../../../../components/icons";
+import {
+  ActionsIcon,
+  IncidentIcon,
+  KnowledgeIcon,
+} from "../../../../components/icons";
+import { formatPriority, formatStatus } from "../../../../lib/utils";
 import {
   ClockIcon,
   CalendarIcon,
@@ -81,7 +86,9 @@ const actionsData = [
   },
 ];
 
-export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({ ticket }) => {
+export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
+  ticket,
+}) => {
   return (
     <div className="flex flex-col gap-6 p-6 w-full h-full overflow-y-auto">
       <div className="flex items-start justify-between">
@@ -95,13 +102,17 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({ ticket }) 
                 {ticket.id}
               </h1>
               {ticket.priorityColor && ticket.priority && (
-                <Badge className={`h-auto px-2 py-0.5 rounded-lg text-xs border-[0.67px] ${ticket.priorityColor}`}>
-                  {ticket.priority}
+                <Badge
+                  className={`h-auto px-2 py-0.5 rounded-lg text-xs border-[0.67px] ${ticket.priorityColor}`}
+                >
+                  {formatPriority(ticket.priority)}
                 </Badge>
               )}
-              {ticket.statusColor && (
-                <Badge className={`h-auto px-2 py-0.5 rounded-lg text-xs ${ticket.statusColor}`}>
-                  {ticket.status}
+              {ticket.statusColor && ticket.status && (
+                <Badge
+                  className={`h-auto px-2 py-0.5 rounded-lg text-xs ${ticket.statusColor}`}
+                >
+                  {formatStatus(ticket.status)}
                 </Badge>
               )}
             </div>
@@ -161,7 +172,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({ ticket }) 
                     Device
                   </span>
                   <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5">
-                    {ticket.device || 'N/A'}
+                    {ticket.device || "N/A"}
                   </span>
                 </div>
               </div>

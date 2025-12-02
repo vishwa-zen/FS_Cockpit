@@ -17,7 +17,12 @@ import { useTickets } from "../shared/TicketsContext";
 import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import { CockpitEmptyStateIcon, CopilotIcon, FSCockpitLogoIcon, MyTicketsIcon } from "../../../../components/icons";
+import {
+  CockpitEmptyStateIcon,
+  CopilotIcon,
+  FSCockpitLogoIcon,
+  MyTicketsIcon,
+} from "../../../../components/icons";
 import {
   Card,
   CardContent,
@@ -46,13 +51,15 @@ export const HomeSearchSection = (): JSX.Element => {
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const {
-    tickets,
+    myTickets,
+    searchResults,
     isLoading,
+    isSearching,
     error,
     selectedTicketId,
     setSelectedTicketId,
-    fetchTickets,
     searchTickets,
+    clearSearchResults,
     activeTab,
     setActiveTab,
   } = useTickets();
@@ -76,16 +83,12 @@ export const HomeSearchSection = (): JSX.Element => {
   const handleSearch = async () => {
     if (searchQuery.trim()) {
       try {
-        const results = await searchTickets(searchQuery, searchType);
-        if (results && results.length > 0) {
-          navigate(`/issue/${results[0].id}`);
-        }
+        await searchTickets(searchQuery, searchType);
       } catch (error) {
         console.error("Search failed:", error);
       }
     } else {
-      // Reload all tickets
-      fetchTickets();
+      clearSearchResults();
     }
   };
 
@@ -193,19 +196,67 @@ export const HomeSearchSection = (): JSX.Element => {
             >
               <div className="p-3 md:p-4 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:600ms]">
                 <Card className="border-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
-                  <CardHeader className="h-[65px] py-3 px-4 border-b-[0.67px] border-[#e1e8f0] bg-[linear-gradient(90deg,rgba(248,250,252,1)_0%,rgba(239,246,255,1)_100%)] flex flex-col gap-0.5 justify-between">
-                    <div className="flex items-center gap-2">
-                      <MyTicketsIcon />
-                      <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
-                        My Tickets
-                      </CardTitle>
-                    </div>
-                    <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
-                      Quick access to tickets assigned to you.
-                    </CardDescription>
+                  <CardHeader
+                    className={`h-[65px] py-3 px-4 border-b-[0.67px] border-[#e1e8f0] flex flex-col gap-0.5 justify-between ${
+                      isSearching || searchResults.length > 0
+                        ? "bg-[linear-gradient(90deg,rgba(239,246,255,1)_0%,rgba(219,234,254,1)_100%)]"
+                        : "bg-[linear-gradient(90deg,rgba(248,250,252,1)_0%,rgba(239,246,255,1)_100%)]"
+                    }`}
+                  >
+                    {isSearching || searchResults.length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <SearchIcon className="w-4 h-4" />
+                            <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
+                              Search Results
+                            </CardTitle>
+                          </div>
+                          <button
+                            onClick={() => {
+                              clearSearchResults();
+                              navigate("/home");
+                            }}
+                            className="text-xs text-[#155cfb] hover:underline font-sans"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        {isSearching ? (
+                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4 flex items-center gap-1">
+                            <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                            Searching...
+                          </CardDescription>
+                        ) : (
+                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
+                            {searchResults.length} result
+                            {searchResults.length !== 1 ? "s" : ""} found
+                          </CardDescription>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <MyTicketsIcon />
+                          <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
+                            My Tickets
+                          </CardTitle>
+                        </div>
+                        <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
+                          Quick access to tickets assigned to you.
+                        </CardDescription>
+                      </>
+                    )}
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
-                    {isLoading ? (
+                    {isSearching ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="font-sans font-normal text-[#61738d] text-sm mt-2">
+                          Searching...
+                        </p>
+                      </div>
+                    ) : isLoading ? (
                       <div className="text-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                         <p className="font-sans font-normal text-[#61738d] text-sm mt-2">
@@ -218,15 +269,30 @@ export const HomeSearchSection = (): JSX.Element => {
                           {error}
                         </p>
                       </div>
-                    ) : tickets.length === 0 ? (
+                    ) : isSearching || searchResults.length > 0 ? (
+                      isSearching ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
+                          <p className="font-sans font-normal text-[#61738d] text-sm mt-2">
+                            Searching...
+                          </p>
+                        </div>
+                      ) : (
+                        <TicketsList
+                          tickets={searchResults}
+                          selectedTicketId={selectedTicketId || undefined}
+                          onTicketClick={handleTicketClick}
+                        />
+                      )
+                    ) : myTickets.length === 0 ? (
                       <div className="text-center py-8">
                         <p className="font-sans font-normal text-[#61738d] text-sm">
-                          No tickets found
+                          No tickets assigned to you
                         </p>
                       </div>
                     ) : (
                       <TicketsList
-                        tickets={tickets}
+                        tickets={myTickets}
                         selectedTicketId={selectedTicketId || undefined}
                         onTicketClick={handleTicketClick}
                       />
@@ -344,7 +410,11 @@ export const HomeSearchSection = (): JSX.Element => {
             </div>
           ) : selectedTicketId ? (
             (() => {
-              const selectedTicket = tickets.find(t => t.id === selectedTicketId);
+              // Check both myTickets and searchResults for the selected ticket
+              const allTickets = [...myTickets, ...searchResults];
+              const selectedTicket = allTickets.find(
+                (t) => t.id === selectedTicketId
+              );
               return selectedTicket ? (
                 <TicketDetailsView ticket={selectedTicket} />
               ) : (
@@ -363,7 +433,8 @@ export const HomeSearchSection = (): JSX.Element => {
                   Cockpit
                 </h2>
                 <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[448px]">
-                  Search for a device, user, or ticket to begin diagnostics. Results and insights will be displayed here.
+                  Search for a device, user, or ticket to begin diagnostics.
+                  Results and insights will be displayed here.
                 </p>
               </div>
             </div>

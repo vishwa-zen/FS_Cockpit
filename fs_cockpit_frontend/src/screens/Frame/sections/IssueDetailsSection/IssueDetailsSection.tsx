@@ -12,7 +12,11 @@ import {
 } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import { Progress } from "../../../../components/ui/progress";
-import { ActionsIcon, IncidentIcon, KnowledgeIcon } from "../../../../components/icons";
+import {
+  ActionsIcon,
+  IncidentIcon,
+  KnowledgeIcon,
+} from "../../../../components/icons";
 import {
   Tabs,
   TabsList,
@@ -108,10 +112,11 @@ export const IssueDetailsSection = (): JSX.Element => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const {
-    tickets,
-    fetchTickets,
+    myTickets,
+    searchResults,
     setSelectedTicketId,
     searchTickets,
+    clearSearchResults,
     activeTab,
     setActiveTab,
   } = useTickets();
@@ -130,12 +135,9 @@ export const IssueDetailsSection = (): JSX.Element => {
 
   const handleSearch = async () => {
     if (searchQuery.trim()) {
-      const results = await searchTickets(searchQuery, searchType);
-      if (results && results.length > 0) {
-        navigate(`/issue/${results[0].id}`);
-      }
+      await searchTickets(searchQuery, searchType);
     } else {
-      fetchTickets();
+      clearSearchResults();
     }
   };
 
@@ -245,26 +247,69 @@ export const IssueDetailsSection = (): JSX.Element => {
                 <div>
                   {/* NOTE: Removed duplicate top heading to rely on CardHeader for 'My Tickets' */}
                   <div className="flex flex-col gap-3">
-                    <Card className="border-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
-                      <CardHeader className="pt-3 pb-[0.67px] px-4 border-b-[0.67px] border-[#e1e8f0] bg-[linear-gradient(90deg,rgba(248,250,252,1)_0%,rgba(239,246,255,1)_100%)]">
-                        <div className="flex items-center gap-2">
-                          <TicketIcon className="w-4 h-4" />
-                          <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
-                            My Tickets
-                          </CardTitle>
-                        </div>
-                        <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
-                          Quick access to tickets assigned to you.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-4">
-                        <TicketsList
-                          tickets={tickets}
-                          selectedTicketId={id || undefined}
-                          onTicketClick={handleTicketClick}
-                        />
-                      </CardContent>
-                    </Card>
+                    {searchResults.length > 0 ? (
+                      <Card className="border-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
+                        <CardHeader className="pt-3 pb-[0.67px] px-4 border-b-[0.67px] border-[#e1e8f0] bg-[linear-gradient(90deg,rgba(239,246,255,1)_0%,rgba(219,234,254,1)_100%)]">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <SearchIcon className="w-4 h-4" />
+                              <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
+                                Search Results
+                              </CardTitle>
+                            </div>
+                            <button
+                              onClick={() => {
+                                clearSearchResults();
+                                navigate("/issues");
+                              }}
+                              className="text-xs text-[#155cfb] hover:underline"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
+                            {searchResults.length} result
+                            {searchResults.length !== 1 ? "s" : ""} found
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-4">
+                          <TicketsList
+                            tickets={searchResults}
+                            selectedTicketId={id || undefined}
+                            onTicketClick={handleTicketClick}
+                          />
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
+                        <CardHeader className="pt-3 pb-[0.67px] px-4 border-b-[0.67px] border-[#e1e8f0] bg-[linear-gradient(90deg,rgba(248,250,252,1)_0%,rgba(239,246,255,1)_100%)]">
+                          <div className="flex items-center gap-2">
+                            <TicketIcon className="w-4 h-4" />
+                            <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
+                              My Tickets
+                            </CardTitle>
+                          </div>
+                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
+                            Quick access to tickets assigned to you.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-4">
+                          {myTickets.length === 0 ? (
+                            <div className="text-center py-8">
+                              <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm">
+                                No tickets assigned to you
+                              </p>
+                            </div>
+                          ) : (
+                            <TicketsList
+                              tickets={myTickets}
+                              selectedTicketId={id || undefined}
+                              onTicketClick={handleTicketClick}
+                            />
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 </div>
               </div>

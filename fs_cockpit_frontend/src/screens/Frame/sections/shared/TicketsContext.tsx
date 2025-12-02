@@ -21,13 +21,16 @@ interface Ticket {
 }
 
 interface TicketsContextValue {
-  tickets: Ticket[];
+  myTickets: Ticket[];
+  searchResults: Ticket[];
   isLoading: boolean;
+  isSearching: boolean;
   error: string | null;
   selectedTicketId?: string | null;
   activeTab?: string | null;
   fetchTickets: () => Promise<void>;
   searchTickets: (query: string, type: string) => Promise<Ticket[]>;
+  clearSearchResults: () => void;
   setSelectedTicketId: (id?: string | null) => void;
   setActiveTab: (tab: string) => void;
 }
@@ -37,8 +40,10 @@ const TicketsContext = createContext<TicketsContextValue | undefined>(
 );
 
 export const TicketsProvider = ({ children }: { children: ReactNode }) => {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [myTickets, setMyTickets] = useState<Ticket[]>([]);
+  const [searchResults, setSearchResults] = useState<Ticket[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTicketIdState, setSelectedTicketIdState] = useState<
     string | null
@@ -46,20 +51,33 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
   const fetchTickets = useCallback(async () => {
-    console.log('[TicketsContext] fetchTickets called');
+    console.log("[TicketsContext] fetchTickets called");
     setIsLoading(true);
     setError(null);
     try {
       const response = await ticketsAPI.getMyTickets();
       if (response.success && response.data && Array.isArray(response.data)) {
-        setTickets(response.data);
+        // Map Critical priorities into High or Medium deterministically
+        const mapped = (response.data as Ticket[]).map((t) => {
+          if (t.priority && /critical/i.test(t.priority)) {
+            // Deterministic hash based on ticket id to split evenly
+            const hash = Array.from(t.id).reduce(
+              (acc, ch) => acc + ch.charCodeAt(0),
+              0
+            );
+            const newPriority = hash % 2 === 0 ? "High" : "Medium";
+            return { ...t, priority: newPriority };
+          }
+          return t;
+        });
+        setMyTickets(mapped);
       } else {
-        setTickets([]);
+        setMyTickets([]);
         setError("No tickets available");
       }
     } catch (err) {
       console.error("Failed to fetch tickets:", err);
-      setTickets([]);
+      setMyTickets([]);
       setError("Failed to load tickets");
     } finally {
       setIsLoading(false);
@@ -67,26 +85,79 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const searchTickets = useCallback(async (query: string, type: string) => {
-    setIsLoading(true);
+    setIsSearching(true);
     setError(null);
     try {
-      const response = await ticketsAPI.searchTickets(query, type);
-      if (response.success && response.data) {
-        setTickets(response.data);
-        return response.data as Ticket[];
+      let response;
+      if (type === "Device") {
+        response = await ticketsAPI.getIncidentsByDevice(query);
+        if (response.success && response.data) {
+          const mapped = (response.data as Ticket[]).map((t) => {
+            if (t.priority && /critical/i.test(t.priority)) {
+              const hash = Array.from(t.id).reduce(
+                (acc, ch) => acc + ch.charCodeAt(0),
+                0
+              );
+              return { ...t, priority: hash % 2 === 0 ? "High" : "Medium" };
+            }
+            return t;
+          });
+          setSearchResults(mapped);
+          return mapped as Ticket[];
+        }
+        return [] as Ticket[];
+      } else if (type === "User") {
+        response = await ticketsAPI.getUserIncidents(query);
+        if (response.success && response.data) {
+          const mapped = (response.data as Ticket[]).map((t) => {
+            if (t.priority && /critical/i.test(t.priority)) {
+              const hash = Array.from(t.id).reduce(
+                (acc, ch) => acc + ch.charCodeAt(0),
+                0
+              );
+              return { ...t, priority: hash % 2 === 0 ? "High" : "Medium" };
+            }
+            return t;
+          });
+          setSearchResults(mapped);
+          return mapped as Ticket[];
+        }
+        return [] as Ticket[];
+      } else {
+        response = await ticketsAPI.searchTickets(query, type);
+        if (response.success && response.data) {
+          const mapped = (response.data as Ticket[]).map((t) => {
+            if (t.priority && /critical/i.test(t.priority)) {
+              const hash = Array.from(t.id).reduce(
+                (acc, ch) => acc + ch.charCodeAt(0),
+                0
+              );
+              return { ...t, priority: hash % 2 === 0 ? "High" : "Medium" };
+            }
+            return t;
+          });
+          setSearchResults(mapped);
+          return mapped as Ticket[];
+        }
+        return [] as Ticket[];
       }
-      return [] as Ticket[];
     } catch (err) {
       console.error("Search failed:", err);
       return [] as Ticket[];
     } finally {
-      setIsLoading(false);
+      setIsSearching(false);
     }
+  }, []);
+
+  const clearSearchResults = useCallback(() => {
+    setSearchResults([]);
+    setIsSearching(false);
   }, []);
 
   useEffect(() => {
     fetchTickets();
-  }, [fetchTickets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setSelectedTicketId = useCallback((id?: string | null) => {
     setSelectedTicketIdState(id ?? null);
@@ -98,24 +169,30 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
 
   const value: TicketsContextValue = useMemo(
     () => ({
-      tickets,
+      myTickets,
+      searchResults,
       isLoading,
+      isSearching,
       error,
       selectedTicketId: selectedTicketIdState,
       activeTab,
       fetchTickets,
       searchTickets,
+      clearSearchResults,
       setSelectedTicketId,
       setActiveTab: setActiveTabCallback,
     }),
     [
-      tickets,
+      myTickets,
+      searchResults,
       isLoading,
+      isSearching,
       error,
       selectedTicketIdState,
       activeTab,
       fetchTickets,
       searchTickets,
+      clearSearchResults,
       setSelectedTicketId,
       setActiveTabCallback,
     ]
