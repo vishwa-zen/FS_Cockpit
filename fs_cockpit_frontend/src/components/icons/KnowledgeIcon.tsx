@@ -1,0 +1,7 @@
+export const KnowledgeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12.5 11.6667C12.6667 10.8334 13.0833 10.2501 13.75 9.58341C14.5833 8.83341 15 7.75008 15 6.66675C15 5.34067 14.4732 4.0689 13.5355 3.13121C12.5979 2.19353 11.3261 1.66675 10 1.66675C8.67392 1.66675 7.40215 2.19353 6.46447 3.13121C5.52678 4.0689 5 5.34067 5 6.66675C5 7.50008 5.16667 8.50008 6.25 9.58341C6.83333 10.1667 7.33333 10.8334 7.5 11.6667" stroke="#0072BC" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M7.5 15H12.5" stroke="#0072BC" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8.33333 18.3333H11.6667" stroke="#0072BC" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
