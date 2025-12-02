@@ -114,75 +114,67 @@ export const HomeSearchSection = (): JSX.Element => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:200ms] relative">
+        <div className="flex items-center gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:200ms]">
           <span className="hidden md:inline [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4">
             {user?.email || user?.username || "john.doe@company.com"}
           </span>
 
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="relative focus:outline-none"
-            >
-              <Avatar className="w-8 h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
-                <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-xs bg-transparent">
-                  {(
-                    (user?.name && user.name.charAt(0)) ||
-                    (user?.email && user.email.charAt(0)) ||
-                    "J"
-                  ).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-
-            {showUserMenu && !isLoggingOut && (
-              <>
-                {/* Overlay: pointer-events-none except for dropdown area */}
-                <div
-                  className="fixed inset-0 z-40"
-                  aria-hidden="true"
-                  style={{ pointerEvents: "auto" }}
-                  onClick={() => setShowUserMenu(false)}
-                />
-                <div
-                  className="absolute top-12 right-0 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50"
-                  style={{ pointerEvents: "auto" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="px-4 py-2 border-b border-[#e1e8f0]">
-                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                      {user?.name || "John Doe"}
-                    </p>
-                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
-                      {user?.email || user?.username || "john.doe@company.com"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      setShowUserMenu(false);
-                      setIsLoggingOut(true);
-                      try {
-                        await logout();
-                      } catch (error) {
-                        console.error("Logout error:", error);
-                      } finally {
-                        navigate("/login");
-                      }
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
-                  >
-                    <LogOutIcon className="w-4 h-4 text-[#61738d]" />
-                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                      Sign Out
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="relative focus:outline-none z-50"
+          >
+            <Avatar className="w-8 h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
+              <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-xs bg-transparent">
+                {(
+                  (user?.name && user.name.charAt(0)) ||
+                  (user?.email && user.email.charAt(0)) ||
+                  "J"
+                ).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </button>
         </div>
+
+        {showUserMenu && !isLoggingOut && (
+          <>
+            {/* Overlay for outside click detection */}
+            <div
+              className="fixed inset-0 z-40"
+              aria-hidden="true"
+              onClick={() => setShowUserMenu(false)}
+            />
+            <div className="fixed top-[73px] right-8 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
+              <div className="px-4 py-2 border-b border-[#e1e8f0]">
+                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
+                  {user?.name || "John Doe"}
+                </p>
+                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
+                  {user?.email || user?.username || "john.doe@company.com"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowUserMenu(false);
+                  setIsLoggingOut(true);
+                  try {
+                    await logout();
+                  } catch (error) {
+                    console.error("Logout error:", error);
+                  } finally {
+                    navigate("/login");
+                  }
+                }}
+                className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
+              >
+                <LogOutIcon className="w-4 h-4 text-[#61738d]" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
+                  Sign Out
+                </span>
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       <div className="flex flex-1 bg-slate-50 overflow-hidden">
