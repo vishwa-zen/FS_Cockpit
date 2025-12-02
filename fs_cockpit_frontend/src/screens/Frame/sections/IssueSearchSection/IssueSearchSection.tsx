@@ -45,7 +45,7 @@ const systemStatuses = [
 
 export const IssueSearchSection = (): JSX.Element => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("INC0012");
   const {
     myTickets,
@@ -77,8 +77,16 @@ export const IssueSearchSection = (): JSX.Element => {
     }
   };
 
-  const handleLogout = () => {
-    navigate("/login");
+  const handleLogout = async () => {
+    console.log("[IssueSearchSection] Logout button clicked");
+    try {
+      await logout();
+      // logout() handles navigation, so no need to navigate here
+    } catch (error) {
+      console.error("[IssueSearchSection] Logout error:", error);
+      // Fallback navigation if logout fails
+      navigate("/login");
+    }
   };
 
   return (

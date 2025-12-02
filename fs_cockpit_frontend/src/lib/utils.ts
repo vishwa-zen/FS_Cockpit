@@ -6,12 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Map numeric priority codes to descriptive labels
-// Priority mapping: all textual (no numeric prefixes)
-// ServiceNow uses 1-5 scale: 1=Critical, 2=High, 3=Medium, 4=Low, 5=Planning
+// Priority mapping: 1=High, 2=Medium, 3=Low
 const priorityMap: Record<string, string> = {
-  "1": "Critical",
-  "2": "High",
-  "3": "Medium",
+  "1": "High",
+  "2": "Medium",
+  "3": "Low",
   "4": "Low",
   "5": "Low",
 };
@@ -28,17 +27,19 @@ const statusMap: Record<string, string> = {
 export function formatPriority(priority?: string | number): string {
   if (priority == null) return "N/A";
   let raw = String(priority).trim();
-  // Strip leading numeric code like "1 - Critical" or "2-High"
+  // Strip leading numeric code like "1 - High" or "2-Medium"
   raw = raw.replace(/^\d+\s*-\s*/g, "");
   // Numeric only maps directly to textual form
   if (/^\d+$/.test(raw)) return priorityMap[raw] || "Low";
   // Normalize textual values
   const normalized = raw.toLowerCase();
-  if (normalized === "critical") return priorityMap["1"];
-  if (normalized === "high") return priorityMap["2"];
-  if (normalized === "medium") return priorityMap["3"];
+  // Map "critical" to "High" (in case it comes from API or cache)
+  if (normalized === "critical" || normalized.includes("critical"))
+    return "High";
+  if (normalized === "high") return priorityMap["1"];
+  if (normalized === "medium") return priorityMap["2"];
   if (normalized === "low" || normalized === "planning")
-    return priorityMap["4"];
+    return priorityMap["3"];
   return raw;
 }
 

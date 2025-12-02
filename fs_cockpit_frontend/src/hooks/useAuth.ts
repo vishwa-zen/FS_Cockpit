@@ -28,6 +28,10 @@ export const useAuth = () => {
       const accountLocal = msalAccountLocal as any;
       const idTokenClaimsLocal = accountLocal.idTokenClaims || {};
 
+      console.log("[useAuth] Setting user from MSAL account");
+      console.log("[useAuth] Account object:", accountLocal);
+      console.log("[useAuth] ID Token Claims:", idTokenClaimsLocal);
+
       const normalizedUserLocal = {
         ...accountLocal,
         username:
@@ -54,6 +58,10 @@ export const useAuth = () => {
           idTokenClaimsLocal.preferred_username ||
           null,
       } as any;
+
+      console.log("[useAuth] Normalized user:", normalizedUserLocal);
+      console.log("[useAuth] User email:", normalizedUserLocal.email);
+      console.log("[useAuth] User name:", normalizedUserLocal.name);
 
       setIsAuthenticated(true);
       setUser(normalizedUserLocal);
@@ -137,24 +145,39 @@ export const useAuth = () => {
   }, [accounts, instance]);
 
   const logout = async () => {
+    console.log("[useAuth] Logout initiated");
+
     try {
       const isDemoMode = localStorage.getItem("demo.mode") === "true";
 
       if (isDemoMode) {
-        // Just clear storage for demo mode
+        console.log("[useAuth] Demo mode logout - clearing storage");
         localStorage.clear();
+        sessionStorage.clear();
         window.location.href = "/login";
         return;
       }
 
-      // Normal MSAL logout
-      await instance.logoutPopup({
-        mainWindowRedirectUri: "/login",
-      });
+      console.log("[useAuth] MSAL logout - clearing storage and redirecting");
+
+      // Clear all storage first
       localStorage.clear();
+      sessionStorage.clear();
+
+      // Set auth state to false
+      setIsAuthenticated(false);
+      setUser(null);
+
+      // Skip MSAL popup logout - just redirect immediately
+      console.log("[useAuth] Redirecting to login...");
+      window.location.href = "/login";
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error("[useAuth] Logout failed with error:", error);
+      // Force logout even if anything fails
       localStorage.clear();
+      sessionStorage.clear();
+      setIsAuthenticated(false);
+      setUser(null);
       window.location.href = "/login";
     }
   };

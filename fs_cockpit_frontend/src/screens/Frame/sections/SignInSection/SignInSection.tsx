@@ -1,8 +1,8 @@
 import { useMsal } from "@azure/msal-react";
 import { ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginRequest } from "../../../../config/msalConfig";
+import { popupLoginRequest } from "../../../../config/msalConfig";
 import { Alert, AlertDescription } from "../../../../components/ui/alert";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent } from "../../../../components/ui/card";
@@ -29,73 +29,73 @@ const features = [
 
 export const SignInSection = (): JSX.Element => {
   const navigate = useNavigate();
-  const { instance } = useMsal();
+  const { instance, accounts } = useMsal();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect to home if user is already authenticated
+  useEffect(() => {
+    if (accounts.length > 0) {
+      navigate("/home");
+    }
+  }, [accounts, navigate]);
 
   const handleSignIn = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await instance.loginPopup(loginRequest);
+      console.log("Initiating login popup...");
+      console.log("Login request:", popupLoginRequest);
 
-      // Store token and account if present
+      // Use popup for authentication
+      const response = await instance.loginPopup(popupLoginRequest);
+
+      console.log("Login successful:", response);
+      console.log("Login response - full response:", {
+        account: response.account,
+        idToken: response.idToken,
+        accessToken: response.accessToken ? "present" : "missing",
+        idTokenClaims: response.idTokenClaims,
+      });
+
+      // Store token and account
       if (response.accessToken) {
         localStorage.setItem("msal.token", response.accessToken);
       }
 
       if (response.account) {
-        // Log account info for debugging in dev
-        if (
-          typeof window !== "undefined" &&
-          (import.meta as any).env?.MODE !== "production"
-        ) {
-          // eslint-disable-next-line no-console
-          console.debug("[SignIn] response.account:", response.account);
-          // also log idTokenClaims to check what claims are present
-          // eslint-disable-next-line no-console
-          console.debug(
-            "[SignIn] response.idTokenClaims:",
-            response.idTokenClaims
-          );
-        }
-        localStorage.setItem("msal.account", JSON.stringify(response.account));
+        console.log("[SignIn] Account object:", response.account);
+        console.log("[SignIn] ID Token Claims:", response.idTokenClaims);
 
-        // Ensure the active account is set on the MSAL instance so `useMsal().accounts` updates.
-        try {
-          instance.setActiveAccount(response.account);
-        } catch (err) {
-          // Some versions or circumstances may not support setActiveAccount; ignore if unavailable.
-          console.warn("Failed to set active MSAL account", err);
-        }
+        // Store the full account data including idTokenClaims
+        const accountWithClaims = {
+          ...response.account,
+          idTokenClaims: response.idTokenClaims,
+        };
+
+        localStorage.setItem("msal.account", JSON.stringify(accountWithClaims));
+        instance.setActiveAccount(response.account);
+
+        console.log("[SignIn] Stored account data:", accountWithClaims);
       }
 
+      // Navigate to home
       navigate("/home");
     } catch (err: any) {
-      console.error("Login failed:", err);
+      console.error("Login popup failed:", err);
+      console.error("Error details:", {
+        errorCode: err?.errorCode,
+        errorMessage: err?.errorMessage,
+        message: err?.message,
+      });
 
-      // Fallback: Allow user to proceed even if Azure AD fails
-      console.warn("Azure AD login failed, proceeding with demo mode");
-
-      // Store demo user data
-      const demoUser = {
-        username: "demo.user@company.com",
-        name: "Demo User",
-        localAccountId: "demo-local-id",
-        homeAccountId: "demo-home-id",
-      };
-
-      localStorage.setItem("demo.mode", "true");
-      localStorage.setItem("msal.account", JSON.stringify(demoUser));
-
-      // Show warning but proceed
-      setError("Azure AD unavailable. Proceeding in demo mode.");
-
-      // Navigate after 2 seconds
-      setTimeout(() => {
-        navigate("/home");
-      }, 2000);
+      // Check if user cancelled
+      if (err?.errorCode === "user_cancelled" || err?.message?.includes("user_cancelled")) {
+        setError("Login cancelled. Please try again.");
+      } else {
+        setError(`Login failed: ${err?.message || "Unknown error"}`);
+      }
     } finally {
       setIsLoading(false);
     }

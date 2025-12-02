@@ -166,7 +166,7 @@ class ServiceNowService:
             incident_number (str): The number of the incident.
 
         Returns:
-            dict: A dictionary containing incident details.
+            Optional[IncidentDTO]: The incident details as an IncidentDTO, or None if not found.
         """
         base_url = self.settings.SERVICENOW_INSTANCE_URL
         sn_username = self.settings.SERVICENOW_USERNAME
@@ -179,11 +179,8 @@ class ServiceNowService:
 
         if not raw:
             return None
-        # ServiceNow returns a 'result' list; fetch first item
-        results = raw.get("result", [])
-        if results:
-            return self._map_incident_to_dto(results[0])
-        return None
+        # Client returns the incident dict directly (not wrapped in 'result')
+        return self._map_incident_to_dto(raw)
 
     # Sorting and parsing helpers moved to `app.utils.incident_utils.IncidentUtils` for reuse
         

@@ -110,7 +110,7 @@ const systemStatusData = [
 export const IssueDetailsSection = (): JSX.Element => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const {
     myTickets,
     searchResults,
@@ -147,8 +147,16 @@ export const IssueDetailsSection = (): JSX.Element => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const handleLogout = () => {
-    navigate("/login");
+  const handleLogout = async () => {
+    console.log("[IssueDetailsSection] Logout button clicked");
+    try {
+      await logout();
+      // logout() handles navigation, so no need to navigate here
+    } catch (error) {
+      console.error("[IssueDetailsSection] Logout error:", error);
+      // Fallback navigation if logout fails
+      navigate("/login");
+    }
   };
 
   return (

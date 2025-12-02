@@ -1,4 +1,4 @@
-import { Configuration, PopupRequest, LogLevel } from "@azure/msal-browser";
+import { Configuration, LogLevel } from "@azure/msal-browser";
 
 /**
  * Configuration object to be passed to MSAL instance on creation.
@@ -16,12 +16,12 @@ export const msalConfig: Configuration = {
       typeof window !== "undefined"
         ? window.location.origin
         : "http://localhost:3000",
-    navigateToLoginRequestUrl: true,
+    navigateToLoginRequestUrl: false,
     knownAuthorities: ["zenpoc.b2clogin.com"],
   },
   cache: {
-    cacheLocation: "localStorage",
-    storeAuthStateInCookie: false,
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: true,
   },
   system: {
     allowNativeBroker: false,
@@ -55,8 +55,18 @@ export const msalConfig: Configuration = {
 /**
  * Scopes for login request
  */
-export const loginRequest: PopupRequest = {
+export const loginRequest = {
   scopes: ["openid", "profile", "email"],
+  prompt: "select_account",
+};
+
+/**
+ * Login request specifically for popup flow
+ */
+export const popupLoginRequest = {
+  scopes: ["openid", "profile", "email"],
+  prompt: "select_account",
+  redirectUri: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
 };
 
 /**

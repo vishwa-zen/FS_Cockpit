@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import TicketsList from "../shared/TicketsList";
 import TicketDetailsView from "../shared/TicketDetailsView";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useTickets } from "../shared/TicketsContext";
@@ -49,6 +49,7 @@ export const HomeSearchSection = (): JSX.Element => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const { user, logout } = useAuth();
+
   const [searchQuery, setSearchQuery] = useState("");
   const {
     myTickets,
@@ -64,12 +65,11 @@ export const HomeSearchSection = (): JSX.Element => {
     setActiveTab,
   } = useTickets();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [searchType, setSearchType] = useState<"User" | "Device" | "Ticket">(
     "Ticket"
   );
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  // activeTab, loading/error and selectedTicketId are derived from TicketsContext
-  // Note: tickets are already fetched by TicketsContext on mount, no need to fetch again
 
   // Update selected ticket when URL parameter changes
   useEffect(() => {
@@ -97,11 +97,6 @@ export const HomeSearchSection = (): JSX.Element => {
     navigate(`/home/${ticketId}`);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
   return (
     <section className="relative w-full h-screen flex flex-col bg-[linear-gradient(135deg,rgba(248,250,252,1)_0%,rgba(239,246,255,0.3)_50%,rgba(241,245,249,1)_100%),linear-gradient(0deg,rgba(255,255,255,1)_0%,rgba(255,255,255,1)_100%)]">
       <header className="flex items-center justify-between px-8 pt-4 pb-0 h-[73px] bg-[#ffffffcc] border-b-[0.67px] border-[#e1e8f0] flex-shrink-0">
@@ -123,42 +118,70 @@ export const HomeSearchSection = (): JSX.Element => {
           <span className="hidden md:inline [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4">
             {user?.email || user?.username || "john.doe@company.com"}
           </span>
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="relative"
-          >
-            <Avatar className="w-8 h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
-              <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-xs bg-transparent">
-                {(
-                  (user?.name && user.name.charAt(0)) ||
-                  (user?.email && user.email.charAt(0)) ||
-                  "J"
-                ).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </button>
 
-          {showUserMenu && (
-            <div className="absolute top-12 right-0 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
-              <div className="px-4 py-2 border-b border-[#e1e8f0]">
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                  {user?.name || "John Doe"}
-                </p>
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
-                  {user?.email || user?.username || "john.doe@company.com"}
-                </p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-2"
-              >
-                <LogOutIcon className="w-4 h-4 text-[#61738d]" />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                  Sign Out
-                </span>
-              </button>
-            </div>
-          )}
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="relative focus:outline-none"
+            >
+              <Avatar className="w-8 h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
+                <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-xs bg-transparent">
+                  {(
+                    (user?.name && user.name.charAt(0)) ||
+                    (user?.email && user.email.charAt(0)) ||
+                    "J"
+                  ).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+
+            {showUserMenu && !isLoggingOut && (
+              <>
+                {/* Overlay: pointer-events-none except for dropdown area */}
+                <div
+                  className="fixed inset-0 z-40"
+                  aria-hidden="true"
+                  style={{ pointerEvents: "auto" }}
+                  onClick={() => setShowUserMenu(false)}
+                />
+                <div
+                  className="absolute top-12 right-0 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50"
+                  style={{ pointerEvents: "auto" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-4 py-2 border-b border-[#e1e8f0]">
+                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
+                      {user?.name || "John Doe"}
+                    </p>
+                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
+                      {user?.email || user?.username || "john.doe@company.com"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setShowUserMenu(false);
+                      setIsLoggingOut(true);
+                      try {
+                        await logout();
+                      } catch (error) {
+                        console.error("Logout error:", error);
+                      } finally {
+                        navigate("/login");
+                      }
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
+                  >
+                    <LogOutIcon className="w-4 h-4 text-[#61738d]" />
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
+                      Sign Out
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -343,7 +366,9 @@ export const HomeSearchSection = (): JSX.Element => {
                 />
                 <div className="relative">
                   <Button
-                    onClick={() => setShowSearchDropdown(!showSearchDropdown)}
+                    onClick={() => {
+                      setShowSearchDropdown(!showSearchDropdown);
+                    }}
                     className="h-auto px-4 py-2 rounded-[10px] shadow-[0px_6px_18px_#1f6feb1f] bg-[linear-gradient(0deg,rgba(31,111,235,1)_0%,rgba(74,163,255,1)_100%)] hover:opacity-90 transition-opacity"
                   >
                     <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[13.3px] leading-normal">
@@ -353,26 +378,32 @@ export const HomeSearchSection = (): JSX.Element => {
                   </Button>
 
                   {showSearchDropdown && (
-                    <div className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
-                      {(["User", "Device", "Ticket"] as const).map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => {
-                            setSearchType(type);
-                            setShowSearchDropdown(false);
-                          }}
-                          className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
-                            searchType === type
-                              ? "bg-blue-50 text-[#1347e5]"
-                              : ""
-                          }`}
-                        >
-                          <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm">
-                            {type}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowSearchDropdown(false)}
+                      />
+                      <div className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
+                        {(["User", "Device", "Ticket"] as const).map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              setSearchType(type);
+                              setShowSearchDropdown(false);
+                            }}
+                            className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
+                              searchType === type
+                                ? "bg-blue-50 text-[#1347e5]"
+                                : ""
+                            }`}
+                          >
+                            <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm">
+                              {type}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

@@ -90,13 +90,32 @@ export interface IncidentsData {
   incidents: Incident[];
 }
 
+// Helper function to map numeric priority to text labels
+// API returns: 1=High, 2=Medium, 3=Low
+export const mapPriorityToText = (priority: string | number): string => {
+  const priorityStr = String(priority).trim();
+
+  // Map numeric priorities from API
+  if (priorityStr === "1") return "High";
+  if (priorityStr === "2") return "Medium";
+  if (priorityStr === "3") return "Low";
+
+  // Handle any "Critical" text that might come from API or cache - map to High
+  if (priorityStr.toLowerCase().includes("critical")) return "High";
+
+  // Return as-is if already text
+  return priorityStr;
+};
+
 // Helper function to map priority to color
-export const getPriorityColor = (priority: string): string => {
-  if (priority.includes("Critical") || priority.includes("1")) {
+export const getPriorityColor = (priority: string | number): string => {
+  const priorityText = mapPriorityToText(priority);
+
+  if (priorityText.toLowerCase().includes("high")) {
     return "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]";
-  } else if (priority.includes("High") || priority.includes("2")) {
+  } else if (priorityText.toLowerCase().includes("medium")) {
     return "bg-[#fef9c2] text-[#a65f00] border-[#feef85]";
-  } else if (priority.includes("Medium") || priority.includes("3")) {
+  } else if (priorityText.toLowerCase().includes("low")) {
     return "bg-[#fff4e6] text-[#d97706] border-[#fed7aa]";
   }
   return "bg-[#f0f9ff] text-[#0369a1] border-[#bae6fd]";
@@ -156,7 +175,7 @@ export const ticketsAPI = {
             statusColor: getStatusColor(incident.status),
             title: incident.shortDescription,
             device: incident.deviceName || "N/A",
-            priority: incident.priority,
+            priority: mapPriorityToText(incident.priority),
             priorityColor: getPriorityColor(incident.priority),
             time: getTimeAgo(incident.openedAt),
             assignedTo: incident.assignedTo,
@@ -203,7 +222,7 @@ export const ticketsAPI = {
             statusColor: getStatusColor(incident.status),
             title: incident.shortDescription,
             device: incident.deviceName || "N/A",
-            priority: incident.priority,
+            priority: mapPriorityToText(incident.priority),
             priorityColor: getPriorityColor(incident.priority),
             time: getTimeAgo(incident.openedAt),
             assignedTo: incident.assignedTo,
@@ -249,7 +268,7 @@ export const ticketsAPI = {
             statusColor: getStatusColor(incident.status),
             title: incident.shortDescription,
             device: incident.deviceName || "N/A",
-            priority: incident.priority,
+            priority: mapPriorityToText(incident.priority),
             priorityColor: getPriorityColor(incident.priority),
             time: getTimeAgo(incident.openedAt),
             assignedTo: incident.assignedTo,
@@ -284,7 +303,7 @@ export const ticketsAPI = {
             statusColor: "bg-[#ffedd4] text-[#c93400] border-transparent",
             title: "Outlook not responding on LAPTOP-8X7D2K",
             device: "LAPTOP-8X7D2K",
-            priority: "1 - Critical",
+            priority: "High",
             priorityColor: "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]",
             time: "2 hours ago",
             assignedTo: "FS Cockpit Integration",
@@ -302,7 +321,7 @@ export const ticketsAPI = {
             statusColor: "bg-[#dbeafe] text-[#1e40af] border-transparent",
             title: "Printer Issue at Fountains Hills Safeway Branch",
             device: "HP LaserJet Pro",
-            priority: "2 - High",
+            priority: "Medium",
             priorityColor: "bg-[#fef9c2] text-[#a65f00] border-[#feef85]",
             time: "5 hours ago",
             assignedTo: "FS Cockpit Integration",
@@ -322,7 +341,7 @@ export const ticketsAPI = {
             statusColor: "bg-[#ffedd4] text-[#c93400] border-transparent",
             title: "Cannot access SAP Sales app",
             device: "SAP Sales and Distribution",
-            priority: "1 - Critical",
+            priority: "High",
             priorityColor: "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]",
             time: "1 day ago",
             assignedTo: "FS Cockpit Integration",
@@ -342,7 +361,7 @@ export const ticketsAPI = {
             statusColor: "bg-[#d1fae5] text-[#065f46] border-transparent",
             title: "Error installing software update",
             device: "LAPTOP-9K2L5P",
-            priority: "3 - Medium",
+            priority: "Low",
             priorityColor: "bg-[#fff4e6] text-[#d97706] border-[#fed7aa]",
             time: "3 days ago",
             assignedTo: "FS Cockpit Integration",
@@ -364,7 +383,7 @@ export const ticketsAPI = {
             statusColor: "bg-[#ffedd4] text-[#c93400] border-transparent",
             title: "Unable to print documents",
             device: "Canon Printer MX920",
-            priority: "2 - High",
+            priority: "Medium",
             priorityColor: "bg-[#fef9c2] text-[#a65f00] border-[#feef85]",
             time: "6 hours ago",
             assignedTo: "FS Cockpit Integration",
@@ -380,6 +399,52 @@ export const ticketsAPI = {
         ],
         success: true,
         message: "Using mock data (API unavailable)",
+      };
+    }
+  },
+
+  // Get incident details by incident number
+  getIncidentByNumber: async (incidentNumber: string) => {
+    try {
+      const response = await apiClient.get<ApiResponse<Incident>>(
+        `/servicenow/incident/${encodeURIComponent(incidentNumber)}/details`
+      );
+      if (response.data.success) {
+        // Transform single incident to UI format
+        const incident = response.data.data;
+        const transformedData = {
+          id: incident.incidentNumber,
+          sysId: incident.sysId,
+          status: incident.status,
+          statusColor: getStatusColor(incident.status),
+          title: incident.shortDescription,
+          device: incident.deviceName || "N/A",
+          priority: mapPriorityToText(incident.priority),
+          priorityColor: getPriorityColor(incident.priority),
+          time: getTimeAgo(incident.openedAt),
+          assignedTo: incident.assignedTo,
+          createdBy: incident.createdBy,
+          callerId: incident.callerId,
+          openedAt: incident.openedAt,
+          lastUpdatedAt: incident.lastUpdatedAt,
+          impact: incident.impact,
+          active: incident.active,
+        };
+        return {
+          data: [transformedData],
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Failed to fetch incident details"
+      );
+    } catch (error: any) {
+      console.error("API Error (incident details):", error);
+      return {
+        data: [],
+        success: false,
+        message: error?.message || "API error",
       };
     }
   },
@@ -402,21 +467,23 @@ export const ticketsAPI = {
 
   searchTickets: async (query: string, type: string) => {
     try {
-      const response = await ticketsAPI.getMyTickets();
-
       if (!query.trim()) {
+        const response = await ticketsAPI.getMyTickets();
         return response;
       }
 
+      // For Ticket search type, use the specific incident details API
+      if (type === "Ticket") {
+        const response = await ticketsAPI.getIncidentByNumber(query);
+        return response;
+      }
+
+      // For other search types, filter from all tickets
+      const response = await ticketsAPI.getMyTickets();
       const filtered = response.data.filter((ticket) => {
         const searchLower = query.toLowerCase();
 
         switch (type) {
-          case "Ticket":
-            return (
-              ticket.id.toLowerCase().includes(searchLower) ||
-              ticket.title.toLowerCase().includes(searchLower)
-            );
           case "Device":
             return ticket.device.toLowerCase().includes(searchLower);
           case "User":

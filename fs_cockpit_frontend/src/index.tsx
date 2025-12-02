@@ -16,6 +16,43 @@ const msalInstance = new PublicClientApplication(msalConfig);
 msalInstance
   .initialize()
   .then(() => {
+    // Handle redirect promise to process any redirect responses
+    return msalInstance.handleRedirectPromise();
+  })
+  .then((response) => {
+    // If we just completed a redirect login, handle the response
+    if (response) {
+      console.log("Authentication successful, processing response");
+      console.log("[Auth] Response:", {
+        account: response.account,
+        idTokenClaims: response.idTokenClaims,
+        accessToken: response.accessToken ? "present" : "missing",
+      });
+
+      // Store token and account if present
+      if (response.accessToken) {
+        localStorage.setItem("msal.token", response.accessToken);
+      }
+
+      if (response.account) {
+        console.log("[Auth] Account:", response.account);
+        console.log("[Auth] ID Token Claims:", response.idTokenClaims);
+
+        // Store the full account data including idTokenClaims
+        const accountWithClaims = {
+          ...response.account,
+          idTokenClaims: response.idTokenClaims,
+        };
+
+        localStorage.setItem("msal.account", JSON.stringify(accountWithClaims));
+
+        // Set the active account
+        msalInstance.setActiveAccount(response.account);
+
+        console.log("[Auth] Stored account with claims:", accountWithClaims);
+      }
+    }
+
     const rootElement = document.getElementById("app");
     if (!rootElement) {
       throw new Error("Root element not found");
