@@ -24,7 +24,7 @@
 
 - **Base Client**: `apiClient` in `src/services/api.ts` with Axios, 30s timeout, automatic bearer token injection
 - **Fallback Pattern**: All API calls return mock data if backend fails (see `ticketsAPI.getMyTickets()`)
-- **API Base URL**: Configured via `VITE_API_BASE_URL` env var, defaults to `http://127.0.0.1:8003/api/v1`
+- **API Base URL**: Configured via `VITE_API_BASE_URL` env var, defaults to `http://127.0.0.1:8000/api/v1`
 - **Response Transform**: Raw ServiceNow incidents transformed to UI format with `statusColor`, `priorityColor`, `time` (relative)
 - **Search Types**: Support "User", "Device", "Ticket" search with different API endpoints:
   - **User**: `getUserIncidents(userName)` - searches by username
@@ -72,7 +72,7 @@ npm run preview   # Preview production build
 ### Environment Setup
 
 - **Required Env**: `VITE_API_BASE_URL` (optional, has default)
-- **No .env file**: Default config works out-of-box for local backend on port 8003
+- **No .env file**: Default config works out-of-box for local backend on port 8000
 - **Vite Config**: Uses `loadEnv()` to inject env vars at build time via `define` (see `vite.config.ts`)
 
 ### Build Optimization

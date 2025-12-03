@@ -11,11 +11,11 @@ export const msalConfig: Configuration = {
     redirectUri:
       typeof window !== "undefined"
         ? window.location.origin
-        : "http://localhost:3000",
+        : "http://localhost:8000",
     postLogoutRedirectUri:
       typeof window !== "undefined"
         ? window.location.origin
-        : "http://localhost:3000",
+        : "http://localhost:8000",
     navigateToLoginRequestUrl: false,
     knownAuthorities: ["zenpoc.b2clogin.com"],
   },
@@ -66,7 +66,10 @@ export const loginRequest = {
 export const popupLoginRequest = {
   scopes: ["openid", "profile", "email"],
   prompt: "select_account",
-  redirectUri: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+  redirectUri:
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:8000",
 };
 
 /**

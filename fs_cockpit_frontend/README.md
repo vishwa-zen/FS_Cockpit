@@ -53,9 +53,9 @@ The application is configured with:
 Create a `.env` file:
 
 ```env
-VITE_API_BASE_URL=http://127.0.0.1:8003/api/v1
+VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 
-Note: In development, the app checks `VITE_API_BASE_URL` from Vite's env; if not set, it falls back to `http://127.0.0.1:8003/api/v1`.
+Note: In development, the app checks `VITE_API_BASE_URL` from Vite's env; if not set, it falls back to `http://127.0.0.1:8000/api/v1`.
 ```
 
 ## Tech Stack

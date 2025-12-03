@@ -3,6 +3,9 @@ import {
   InfoIcon,
   LogOutIcon,
   SearchIcon,
+  AlertCircle,
+  ArrowLeft,
+  ServerCrash,
 } from "lucide-react";
 import TicketsList from "../shared/TicketsList";
 import TicketDetailsView from "../shared/TicketDetailsView";
@@ -442,27 +445,92 @@ export const HomeSearchSection = (): JSX.Element => {
               const selectedTicket = allTickets.find(
                 (t) => t.id === selectedTicketId
               );
-              return selectedTicket ? (
-                <TicketDetailsView ticket={selectedTicket} />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full gap-4">
-                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm">
-                    Ticket not found
-                  </p>
+
+              // If ticket found, show details
+              if (selectedTicket) {
+                return <TicketDetailsView ticket={selectedTicket} />;
+              }
+
+              // If error exists and no tickets loaded, backend is unavailable
+              if (
+                error &&
+                myTickets.length === 0 &&
+                searchResults.length === 0
+              ) {
+                return (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <div className="flex flex-col items-center justify-center gap-6 p-8 max-w-md">
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center">
+                        <ServerCrash className="w-10 h-10 text-[#d97706]" />
+                      </div>
+                      <div className="flex flex-col items-center gap-2">
+                        <h3 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-lg text-center leading-6">
+                          Service Unavailable
+                        </h3>
+                        <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5">
+                          Unable to connect to the backend service. Please check
+                          if the API server is running or try again later.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          navigate("/home");
+                          window.location.reload();
+                        }}
+                        className="h-auto px-6 py-3 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-sm">
+                          Retry
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Otherwise, ticket not found
+              return (
+                <div className="flex items-center justify-center w-full h-full">
+                  <div className="flex flex-col items-center justify-center gap-6 p-8 max-w-md">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
+                      <AlertCircle className="w-10 h-10 text-[#d32f2f]" />
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <h3 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-lg text-center leading-6">
+                        Ticket Not Found
+                      </h3>
+                      <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5">
+                        The ticket you're looking for could not be found. It may
+                        have been removed or you may not have access to it.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => navigate("/home")}
+                      className="h-auto px-6 py-3 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-sm">
+                        Back to Tickets
+                      </span>
+                    </Button>
+                  </div>
                 </div>
               );
             })()
           ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-8 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:800ms]">
-              <CockpitEmptyStateIcon />
-              <div className="flex flex-col items-center gap-2">
-                <h2 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-base text-center leading-6">
-                  Cockpit
-                </h2>
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[448px]">
-                  Search for a device, user, or ticket to begin diagnostics.
-                  Results and insights will be displayed here.
-                </p>
+            <div className="flex items-center justify-center w-full h-full">
+              <div className="flex flex-col items-center justify-center gap-8 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:800ms]">
+                <CockpitEmptyStateIcon />
+                <div className="flex flex-col items-center gap-2">
+                  <h2 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-base text-center leading-6">
+                    Cockpit
+                  </h2>
+                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[448px]">
+                    Search for a device, user, or ticket to begin diagnostics.
+                    Results and insights will be displayed here.
+                  </p>
+                </div>
               </div>
             </div>
           )}
