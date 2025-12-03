@@ -4,10 +4,11 @@
 """
 from fastapi import APIRouter, Depends, HTTPException
 import structlog
- # ...existing code...
 from app.services.servicenow_service import ServiceNowService
 from app.middleware.request_id import get_request_id as _get_request_id
 from app.schemas.incident import IncidentDTO, IncidentListResponse
+from app.schemas.computer import ComputerListResponse
+from app.schemas.knowledge import KnowledgeSearchResponse
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -102,4 +103,77 @@ async def fetch_incident_details(incident_number: str, service: ServiceNowServic
     if result is None:
         raise HTTPException(status_code=404, detail=f"Incident {incident_number} not found")
     return result
+
+
+@router.get(
+    "/user/{user_sys_id}/devices",
+    summary="Get Devices by User Sys ID",
+    response_model=ComputerListResponse,
+)
+async def fetch_devices_by_user(user_sys_id: str, service: ServiceNowService = Depends(get_service)):
+    """
+    Retrieve devices (computers) assigned to a specific user.
+
+    Args:
+        user_sys_id (str): The sys_id of the user.
+    Returns:
+        ComputerListResponse: A list of computers assigned to the user.
+    """
+    logger.info("Fetching devices for user", user_sys_id=user_sys_id)
+    computers = await service.fetch_devices_by_user(user_sys_id)
+    return {"computers": computers, "count": len(computers)}
+
+
+@router.get(
+    "/knowledge/search",
+    summary="Search Knowledge Articles",
+    response_model=KnowledgeSearchResponse,
+)
+async def search_knowledge_articles(
+    query: str,
+    limit: int = 5,
+    use_search_api: bool = False,  # Default to Table API (more compatible)
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Search for knowledge articles matching the query.
+    Uses ServiceNow Search API for relevance ranking by default.
+
+    Args:
+        query (str): Search text (e.g., "Error installing software update")
+        limit (int): Maximum number of articles (default: 5)
+        use_search_api (bool): Use Search API (True) or Table API (False)
+    
+    Returns:
+        KnowledgeSearchResponse: Matching articles sorted by relevance or popularity.
+    """
+    logger.info("Searching knowledge articles", query=query, limit=limit)
+    articles = await service.search_knowledge_articles(query, limit, use_search_api)
+    return {"articles": articles, "count": len(articles), "query": query}
+
+
+@router.get(
+    "/incident/{incident_number}/knowledge",
+    summary="Get Knowledge Articles for Incident",
+    response_model=KnowledgeSearchResponse,
+)
+async def get_knowledge_for_incident(
+    incident_number: str,
+    limit: int = 5,
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Search for knowledge articles relevant to a specific incident.
+    Uses the incident's short description to find matching articles.
+
+    Args:
+        incident_number (str): The incident number (e.g., "INC0010001")
+        limit (int): Maximum number of articles (default: 5)
+    
+    Returns:
+        KnowledgeSearchResponse: Relevant articles sorted by relevance.
+    """
+    logger.info("Fetching KB articles for incident", incident_number=incident_number)
+    articles = await service.search_knowledge_articles_for_incident(incident_number, limit)
+    return {"articles": articles, "count": len(articles), "query": f"incident:{incident_number}"}
 

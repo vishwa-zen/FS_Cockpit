@@ -101,9 +101,9 @@ class ResponseWrapperMiddleware(BaseHTTPMiddleware):
                 "request_id": request_id,
             }
 
-        # Preserve headers except content-length (will be recalculated)
-        headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
-        return JSONResponse(status_code=status_code, content=wrapper, headers=headers)
+        # Don't preserve original headers - let JSONResponse set them correctly
+        # Only preserve specific headers if needed (like cache-control, etc.)
+        return JSONResponse(status_code=status_code, content=wrapper)
 
 
 __all__ = ["ResponseWrapperMiddleware"]

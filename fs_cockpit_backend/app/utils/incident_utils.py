@@ -16,6 +16,20 @@ class IncidentUtils:
         return val if val is not None else ""
 
     @staticmethod
+    def extract_reference_field(val) -> tuple[Optional[str], Optional[str]]:
+        """Extract both value (sys_id) and display_value (name) from a ServiceNow reference field.
+        
+        Returns:
+            tuple: (value/sys_id, display_value/name)
+        """
+        if isinstance(val, dict):
+            value = val.get("value") or None
+            display_value = val.get("display_value") or None
+            return (value, display_value)
+        # If it's just a string, return it as the value with None for display
+        return (val if val else None, None)
+
+    @staticmethod
     def parse_opened_at(opened_at_str: Optional[str]) -> datetime:
         """Parse an openedAt string into a datetime. If parsing fails or input is falsy, return datetime.min.
 

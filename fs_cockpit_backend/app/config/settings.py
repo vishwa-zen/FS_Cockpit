@@ -32,9 +32,13 @@ class Settings(BaseSettings):
     SERVICENOW_PASSWORD: str = Field(..., env=("SERVICENOW_PASSWORD", "SN_PASSWORD"))
     
     # Intune Configuration
-    INTUNE_TENANT_ID: str
-    INTUNE_CLIENT_ID: str
-    INTUNE_CLIENT_SECRET: str
+    INTUNE_BASE_URL: str = Field(..., env="INTUNE_BASE_URL")
+    INTUNE_GRAPH_URL: str = Field(default="https://graph.microsoft.com/v1.0", env="INTUNE_GRAPH_URL")
+    INTUNE_TENANT_ID: str = Field(..., env="INTUNE_TENANT_ID")
+    INTUNE_CLIENT_ID: str = Field(..., env="INTUNE_CLIENT_ID")
+    INTUNE_CLIENT_SECRET: str = Field(..., env="INTUNE_CLIENT_SECRET")
+    INTUNE_SCOPE: str = Field(default="https://graph.microsoft.com/.default", env="INTUNE_SCOPE")
+    INTUNE_GRANT_TYPE: str = Field(default="client_credentials", env="INTUNE_GRANT_TYPE")
     
     # NextThink Configuration (support legacy NEXTHINK_* env names)
     NEXTTHINK_BASE_URL: str = Field(..., env=("NEXTTHINK_BASE_URL", "NEXTHINK_BASE_URL"))

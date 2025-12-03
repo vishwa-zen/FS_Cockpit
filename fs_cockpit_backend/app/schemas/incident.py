@@ -9,6 +9,7 @@ class IncidentDTO(BaseModel):
     sysId: str
     incidentNumber: str
     shortDescription: Optional[str]
+    description: Optional[str]  # Full detailed description
     priority: Optional[str]
     impact: Optional[int]
     status: Optional[str]  # This will now contain state.display_value
@@ -16,7 +17,8 @@ class IncidentDTO(BaseModel):
     assignedTo: Optional[str]
     deviceName: Optional[str]
     createdBy: Optional[str]
-    callerId: Optional[str]
+    callerId: Optional[str]  # The sys_id value
+    callerName: Optional[str]  # The display_value (user name)
     openedAt: Optional[str]  # ISO datetime string
     lastUpdatedAt: Optional[str]
 
