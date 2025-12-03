@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       "process.env.VITE_API_BASE_URL": JSON.stringify(
-        env.VITE_API_BASE_URL || "http://127.0.0.1:8005/api/v1"
+        env.VITE_API_BASE_URL || "http://127.0.0.1:8003/api/v1"
       ),
     },
     server: {

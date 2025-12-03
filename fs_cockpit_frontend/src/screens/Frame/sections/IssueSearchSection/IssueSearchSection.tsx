@@ -1,10 +1,7 @@
 import {
   ChevronDown,
-  ChevronRight,
   LogOut,
   Search,
-  Clock,
-  Monitor,
   Sparkles,
   Info,
   Layers,
@@ -17,7 +14,6 @@ import { useTickets } from "../shared/TicketsContext";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
-import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import {
   Card,
@@ -109,7 +105,7 @@ export const IssueSearchSection = (): JSX.Element => {
 
           <div className="flex items-center gap-2 md:gap-3 relative">
             <div className="hidden md:block [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4">
-              {user?.email || user?.username || "john.doe@company.com"}
+              {user?.email || user?.username || "testadmin@ntt.com"}
             </div>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -130,10 +126,10 @@ export const IssueSearchSection = (): JSX.Element => {
               <div className="absolute top-12 right-0 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
                 <div className="px-4 py-2 border-b border-[#e1e8f0]">
                   <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                    John Doe
+                    Test Admin
                   </p>
                   <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
-                    john.doe@company.com
+                    testadmin@ntt.com
                   </p>
                 </div>
                 <button
@@ -152,7 +148,7 @@ export const IssueSearchSection = (): JSX.Element => {
       </header>
 
       <div className="flex flex-1 bg-slate-50 overflow-hidden">
-        <aside className="w-full md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex flex-col">
+        <aside className="hidden md:flex md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col">
           <Tabs
             defaultValue={activeTab || "search"}
             onValueChange={setActiveTab}

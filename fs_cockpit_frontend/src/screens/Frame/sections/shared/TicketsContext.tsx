@@ -18,6 +18,10 @@ interface Ticket {
   device?: string;
   priority?: string;
   priorityColor?: string;
+  callerId?: string;
+  callerName?: string;
+  openedAt?: string;
+  lastUpdatedAt?: string;
 }
 
 interface TicketsContextValue {

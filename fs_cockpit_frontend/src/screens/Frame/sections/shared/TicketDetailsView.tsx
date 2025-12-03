@@ -1,4 +1,23 @@
-import React from "react";
+/**
+ * TicketDetailsView Component
+ *
+ * Displays comprehensive ticket information including:
+ * - Ticket details (status, priority, caller, dates)
+ * - Device information (manufacturer, model, storage, sync status)
+ * - Knowledge base articles (relevant documentation and solutions)
+ * - Recommended actions (diagnostic steps and remediation)
+ *
+ * Features:
+ * - Parallel API data fetching for optimal performance
+ * - Loading states for all data sections
+ * - Graceful error handling with user-friendly messages
+ * - Real-time device synchronization status
+ *
+ * @param {TicketDetailsViewProps} props - Component props containing ticket data
+ */
+
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
@@ -16,8 +35,33 @@ import {
   UserIcon,
   ChevronRightIcon,
   MonitorIcon,
+  FileTextIcon,
+  PhoneIcon,
+  BuildingIcon,
+  PackageIcon,
+  HashIcon,
+  LaptopIcon,
+  SettingsIcon,
+  HardDriveIcon,
+  DatabaseIcon,
+  ArrowLeft,
+  WifiIcon,
+  ActivityIcon,
+  AlertCircle,
+  BookOpen,
 } from "lucide-react";
+import {
+  deviceAPI,
+  ticketsAPI,
+  knowledgeAPI,
+  IntuneDevice,
+  KnowledgeArticle,
+} from "../../../../services/api";
 
+/**
+ * Ticket interface definition
+ * Represents the core ticket/incident data structure
+ */
 interface Ticket {
   id: string;
   status: string;
@@ -27,8 +71,16 @@ interface Ticket {
   device?: string;
   priority?: string;
   priorityColor?: string;
+  callerId?: string;
+  callerName?: string;
+  createdBy?: string;
+  openedAt?: string;
+  lastUpdatedAt?: string;
 }
 
+/**
+ * Component props interface
+ */
 interface TicketDetailsViewProps {
   ticket: Ticket;
 }
@@ -87,18 +139,219 @@ const actionsData = [
 ];
 
 export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
-  ticket,
+  ticket: initialTicket,
 }) => {
+  const navigate = useNavigate();
+  const [ticket, setTicket] = useState<Ticket>(initialTicket);
+  const [deviceDetails, setDeviceDetails] = useState<IntuneDevice | null>(null);
+  const [isLoadingDevice, setIsLoadingDevice] = useState(true);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+  const [isLoadingTicket, setIsLoadingTicket] = useState(true);
+  const [knowledgeArticles, setKnowledgeArticles] = useState<
+    KnowledgeArticle[]
+  >([]);
+  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(true);
+  const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
+
+  /**
+   * Fetch all ticket-related data in parallel
+   *
+   * Executes three API calls simultaneously for optimal performance:
+   * 1. Ticket details - Full incident information
+   * 2. Device details - Hardware specs and health status
+   * 3. Knowledge articles - Relevant documentation
+   *
+   * Uses Promise.allSettled to ensure independent error handling
+   * for each API call without blocking others.
+   */
+  useEffect(() => {
+    const fetchAllData = async () => {
+      setIsLoadingTicket(true);
+      setIsLoadingDevice(true);
+      setIsLoadingKnowledge(true);
+      setDeviceError(null);
+      setKnowledgeError(null);
+
+      try {
+        // Start all API calls in parallel for optimal performance
+        const [ticketResponse, deviceResponse, knowledgeResponse] =
+          await Promise.allSettled([
+            // Fetch ticket details
+            ticketsAPI.getIncidentDetails(initialTicket.id),
+            // Fetch device details (using initial ticket data)
+            deviceAPI.getDeviceDetailsOrchestrated(
+              initialTicket.device,
+              initialTicket.callerId || undefined
+            ),
+            // Fetch knowledge articles
+            knowledgeAPI.getKnowledgeArticles(initialTicket.id, 3),
+          ]);
+
+        // Handle ticket details response
+        if (
+          ticketResponse.status === "fulfilled" &&
+          ticketResponse.value.success &&
+          ticketResponse.value.data
+        ) {
+          setTicket(ticketResponse.value.data);
+        } else {
+          // Fallback to initial ticket data if API fails
+          setTicket(initialTicket);
+        }
+
+        // Handle device details response with contextual error messages
+        if (
+          deviceResponse.status === "fulfilled" &&
+          deviceResponse.value.success &&
+          deviceResponse.value.data
+        ) {
+          setDeviceDetails(deviceResponse.value.data);
+        } else {
+          let errorMsg = "Unable to load device information";
+          if (deviceResponse.status === "rejected") {
+            errorMsg = "Device service is temporarily unavailable";
+          } else if (deviceResponse.status === "fulfilled") {
+            const apiMessage = deviceResponse.value.message;
+            // Don't show generic success messages as errors
+            if (
+              apiMessage &&
+              !apiMessage.includes("Operation completed successfully")
+            ) {
+              errorMsg = apiMessage;
+            } else {
+              errorMsg = "Device information not found";
+            }
+          }
+          setDeviceError(errorMsg);
+        }
+
+        // Handle knowledge articles response with contextual error messages
+        if (
+          knowledgeResponse.status === "fulfilled" &&
+          knowledgeResponse.value.success &&
+          knowledgeResponse.value.data
+        ) {
+          setKnowledgeArticles(knowledgeResponse.value.data);
+        } else {
+          let errorMsg = "Unable to load knowledge articles";
+          if (knowledgeResponse.status === "rejected") {
+            errorMsg = "Knowledge base service is temporarily unavailable";
+          } else if (knowledgeResponse.status === "fulfilled") {
+            const apiMessage = knowledgeResponse.value.message;
+            // Don't show generic success messages as errors
+            if (
+              apiMessage &&
+              !apiMessage.includes("Operation completed successfully")
+            ) {
+              errorMsg = apiMessage;
+            } else {
+              errorMsg = "No relevant articles found";
+            }
+          }
+          setKnowledgeError(errorMsg);
+        }
+      } catch (error) {
+        // Global error handler for unexpected failures
+        setTicket(initialTicket);
+        setDeviceError("Unable to connect to device service");
+        setKnowledgeError("Unable to connect to knowledge base");
+      } finally {
+        setIsLoadingTicket(false);
+        setIsLoadingDevice(false);
+        setIsLoadingKnowledge(false);
+      }
+    };
+
+    fetchAllData();
+  }, [initialTicket.id]);
+
+  /**
+   * Format storage bytes to GB
+   *
+   * @param bytes - Storage size in bytes
+   * @returns Formatted string with GB units (e.g., "512.00 GB")
+   */
+  const formatStorage = (bytes?: number): string => {
+    if (!bytes) return "N/A";
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(2)} GB`;
+  };
+
+  /**
+   * Format ISO date string to locale date string
+   *
+   * @param dateString - ISO 8601 date string
+   * @returns Localized date/time string
+   */
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  /**
+   * Convert ISO date to relative time string
+   *
+   * Calculates time difference and returns human-readable format:
+   * - "X minutes ago" (< 60 minutes)
+   * - "X hours ago" (< 24 hours)
+   * - "X days ago" (≥ 24 hours)
+   *
+   * @param dateString - ISO 8601 date string
+   * @returns Relative time string or "N/A"
+   */
+  const getRelativeTime = (dateString?: string): string => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 60)
+        return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+      if (diffHours < 24)
+        return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+      return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+    } catch {
+      return dateString;
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-6 p-6 w-full h-full overflow-y-auto">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="w-[96px] h-[96px] rounded-[10px] overflow-hidden flex-shrink-0">
+    <div className="flex flex-col gap-4 md:gap-6 p-3 sm:p-4 md:p-6 w-full h-full overflow-y-auto">
+      {/* Mobile back button */}
+      <button
+        onClick={() => navigate("/home")}
+        className="md:hidden flex items-center gap-2 text-[#155cfb] hover:text-[#1347e5] transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm">
+          Back to tickets
+        </span>
+      </button>
+
+      <div className="flex flex-col lg:flex-row items-start justify-between gap-4 lg:gap-6">
+        <div className="flex items-start gap-3 md:gap-4 w-full lg:w-auto">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-[96px] md:h-[96px] rounded-[10px] overflow-hidden flex-shrink-0">
             <IncidentIcon />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-2xl leading-9">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
+              <h1 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-lg sm:text-xl md:text-2xl leading-7 sm:leading-8 md:leading-9">
                 {ticket.id}
               </h1>
               {ticket.priorityColor && ticket.priority && (
@@ -121,7 +374,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 sm:gap-3 w-full lg:w-auto overflow-x-auto">
           <Card className="p-4 rounded-[10px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-2">
               <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
@@ -155,101 +408,309 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <Card className="flex-[0_0_50%] p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
-          <CardContent className="p-0 flex flex-col gap-6">
+      <div className="flex flex-col xl:flex-row gap-3 md:gap-4">
+        <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
+          <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
             <div className="flex items-center gap-2">
               <UserIcon className="w-5 h-5" />
               <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
                 Ticket Details
               </h3>
             </div>
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
-                <MonitorIcon className="w-4 h-4 mt-1 text-[#61738d]" />
-                <div className="flex flex-col">
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
-                    Device
-                  </span>
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5">
-                    {ticket.device || "N/A"}
-                  </span>
+            {isLoadingTicket ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-2">
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <FileTextIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Description
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {ticket.title}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <PhoneIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Caller
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {ticket.callerName || ticket.callerId || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <CalendarIcon className="w-4 h-4 mt-1" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Created
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {ticket.openedAt ? formatDate(ticket.openedAt) : "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <RefreshCwIcon className="w-4 h-4 mt-1" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Last Updated
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {ticket.time}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <ClockIcon className="w-4 h-4 mt-1" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      SLA Status
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      Within SLA (18 hours remaining)
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
-                <CalendarIcon className="w-4 h-4 mt-1" />
-                <div className="flex flex-col">
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
-                    Created
-                  </span>
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5">
-                    2025-11-13 09:23 AM
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
-                <RefreshCwIcon className="w-4 h-4 mt-1" />
-                <div className="flex flex-col">
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
-                    Last Updated
-                  </span>
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5">
-                    {ticket.time}
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <ClockIcon className="w-4 h-4 mt-1" />
-                <div className="flex flex-col">
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
-                    SLA Status
-                  </span>
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5">
-                    Within SLA (18 hours remaining)
-                  </span>
-                </div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="flex-[0_0_25%] p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
-          <CardContent className="p-0 flex flex-col gap-6">
+        <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
+          <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
+            <div className="flex items-center gap-2">
+              <MonitorIcon className="w-5 h-5 text-[#61738d]" />
+              <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                Device Details
+              </h3>
+            </div>
+            {isLoadingDevice ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
+              </div>
+            ) : deviceError ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
+                <AlertCircle className="w-10 h-10 text-[#61738d] opacity-50" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
+                  {deviceError}
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-2">
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <LaptopIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Device Name
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.deviceName || ticket.device || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <BuildingIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Manufacturer
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.manufacturer || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <PackageIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Model
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.model || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <HashIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Serial Number
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.serialNumber || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <MonitorIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Operating System
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.operatingSystem || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <SettingsIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      OS Version
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.osVersion || "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <HardDriveIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Total Storage
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.totalStorageSpaceInBytes
+                        ? formatStorage(deviceDetails.totalStorageSpaceInBytes)
+                        : "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <DatabaseIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Free Storage
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.freeStorageSpaceInBytes
+                        ? formatStorage(deviceDetails.freeStorageSpaceInBytes)
+                        : "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <CalendarIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Enrolled Date
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.enrolledDateTime
+                        ? formatDate(deviceDetails.enrolledDateTime)
+                        : "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
+                  <WifiIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Last Sync
+                    </span>
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
+                      {deviceDetails?.lastSyncDateTime
+                        ? getRelativeTime(deviceDetails.lastSyncDateTime)
+                        : "N/A"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <ActivityIcon className="w-4 h-4 mt-1 text-[#61738d]" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                      Health Status
+                    </span>
+                    <span
+                      className={`[font-family:'Arial-Regular',Helvetica] font-normal text-sm leading-5 break-words ${
+                        deviceDetails?.complianceState === "compliant"
+                          ? "text-[#00a63e]"
+                          : deviceDetails?.complianceState === "noncompliant"
+                          ? "text-[#d32f2f]"
+                          : "text-[#f59e0b]"
+                      }`}
+                    >
+                      {deviceDetails?.complianceState === "compliant"
+                        ? "Compliant"
+                        : deviceDetails?.complianceState === "noncompliant"
+                        ? "Non-Compliant"
+                        : deviceDetails?.complianceState || "Unknown"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
+          <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
             <div className="flex items-center gap-2">
               <KnowledgeIcon />
               <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
                 Knowledge
               </h3>
             </div>
-            <div className="flex flex-col gap-4">
-              {rootCauseData.map((cause, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col gap-2 pb-4 border-b-[0.67px] border-[#e1e8f0] last:border-0 last:pb-0"
-                >
-                  <div className="flex items-start justify-between">
-                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 flex-1">
-                      {cause.title}
+            {isLoadingKnowledge ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
+              </div>
+            ) : knowledgeError ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4">
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#d32f2f] text-sm text-center">
+                  {knowledgeError}
+                </span>
+              </div>
+            ) : knowledgeArticles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
+                <BookOpen className="w-10 h-10 text-[#61738d] opacity-50" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
+                  No knowledge articles found for this incident
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-2">
+                {knowledgeArticles.map((article, index) => (
+                  <div
+                    key={article.sysId}
+                    className="flex flex-col gap-2 pb-4 border-b-[0.67px] border-[#e1e8f0] last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 flex-1 break-words">
+                        {article.title}
+                      </p>
+                      <Badge className="h-auto px-2 py-0.5 rounded-lg text-xs bg-blue-100 text-[#1347e5] border-0 flex-shrink-0">
+                        {article.score.toFixed(0)}%
+                      </Badge>
+                    </div>
+                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">
+                      {article.shortDescription}
                     </p>
-                    <Badge className="h-auto px-2 py-0.5 rounded-lg text-xs bg-blue-100 text-[#1347e5] border-0">
-                      {cause.confidence}
-                    </Badge>
+                    <a
+                      href={article.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[#1347e5] hover:underline text-xs"
+                    >
+                      View Article
+                      <ChevronRightIcon className="w-3 h-3" />
+                    </a>
                   </div>
-                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
-                    {cause.description}
-                  </p>
-                  <Progress
-                    value={cause.progress}
-                    className="h-1.5 bg-slate-200 [&>div]:bg-[#0072BC]"
-                  />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="flex-[0_0_25%] p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
-          <CardContent className="p-0 flex flex-col gap-6">
+        <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
+          <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
             <div className="flex items-center gap-2">
               <ActionsIcon />
               <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
@@ -263,7 +724,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                   className="flex flex-col gap-3 p-4 bg-[#f8fafc] rounded-lg border-[0.67px] border-[#e1e8f0]"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070F26] text-sm leading-5 flex-1">
+                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070F26] text-sm leading-5 flex-1 break-words">
                       {action.title}
                     </p>
                     <Badge
@@ -272,7 +733,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                       {action.priority}
                     </Badge>
                   </div>
-                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
+                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">
                     {action.description}
                   </p>
                   <div className="flex flex-col gap-1">

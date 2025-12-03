@@ -1,11 +1,8 @@
 import {
   ChevronDownIcon,
-  ClockIcon,
   InfoIcon,
   LogOutIcon,
-  MonitorIcon,
   SearchIcon,
-  UserIcon,
 } from "lucide-react";
 import TicketsList from "../shared/TicketsList";
 import TicketDetailsView from "../shared/TicketDetailsView";
@@ -15,7 +12,6 @@ import { useAuth } from "../../../../hooks/useAuth";
 import { useTickets } from "../shared/TicketsContext";
 // systemStatusAPI is not used in this component; use systemStatusData constant instead
 import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
-import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import {
   CockpitEmptyStateIcon,
@@ -37,7 +33,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../../../components/ui/tabs";
-import { ScrollArea } from "../../../../components/ui/scroll-area";
 
 const systemStatusData = [
   { name: "ServiceNow", status: "operational", color: "bg-[#00c950]" },
@@ -116,7 +111,7 @@ export const HomeSearchSection = (): JSX.Element => {
 
         <div className="flex items-center gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:200ms]">
           <span className="hidden md:inline [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4">
-            {user?.email || user?.username || "john.doe@company.com"}
+            {user?.email || user?.username || "testadmin@ntt.com"}
           </span>
 
           <button
@@ -146,10 +141,10 @@ export const HomeSearchSection = (): JSX.Element => {
             <div className="fixed top-[73px] right-8 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
               <div className="px-4 py-2 border-b border-[#e1e8f0]">
                 <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                  {user?.name || "John Doe"}
+                  {user?.name || "Test Admin"}
                 </p>
                 <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
-                  {user?.email || user?.username || "john.doe@company.com"}
+                  {user?.email || user?.username || "testadmin@ntt.com"}
                 </p>
               </div>
               <button
@@ -178,7 +173,12 @@ export const HomeSearchSection = (): JSX.Element => {
       </header>
 
       <div className="flex flex-1 bg-slate-50 overflow-hidden">
-        <aside className="w-full md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex flex-col">
+        {/* Show sidebar on desktop, hide on mobile when ticket is selected */}
+        <aside
+          className={`${
+            selectedTicketId ? "hidden md:flex" : "flex"
+          } w-full md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col`}
+        >
           <Tabs
             defaultValue={activeTab || "unified-search"}
             onValueChange={setActiveTab}
@@ -410,7 +410,11 @@ export const HomeSearchSection = (): JSX.Element => {
           </div>
         </aside>
 
-        <main className="flex-1 bg-slate-50 min-h-[552px] overflow-hidden">
+        <main
+          className={`${
+            selectedTicketId ? "flex" : "hidden md:flex"
+          } flex-1 bg-slate-50 min-h-[552px] overflow-hidden`}
+        >
           {activeTab === "copilot" ? (
             <div className="flex flex-col items-center justify-center h-full gap-8 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:800ms]">
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">

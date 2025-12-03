@@ -1,5 +1,21 @@
 import axios from "axios";
 
+/**
+ * API Service Module
+ *
+ * Provides centralized HTTP client configuration and API methods for:
+ * - Incident/Ticket management
+ * - Device information retrieval
+ * - Knowledge base articles
+ * - Diagnostics and system status
+ *
+ * Features:
+ * - Automatic authentication token injection
+ * - Request/response interceptors
+ * - Graceful error handling with user-friendly messages
+ * - Production-grade logging
+ */
+
 // Environment variables - using process.env instead of import.meta
 // Prefer Vite's import.meta.env at runtime; fall back to process.env for Node/SSR or a sane default
 declare const process: {
@@ -8,23 +24,63 @@ declare const process: {
   };
 };
 
-// Prefer import.meta.env for Vite, fallback to process.env, then default to localhost:8005
+/**
+ * Environment-aware logger utility
+ * Only logs in development mode to prevent console pollution in production
+ */
+const logger = {
+  debug: (message: string, ...args: any[]) => {
+    if (
+      typeof import.meta !== "undefined" &&
+      (import.meta as any).env?.MODE !== "production"
+    ) {
+      console.debug(`[API Debug] ${message}`, ...args);
+    }
+  },
+  info: (message: string, ...args: any[]) => {
+    if (
+      typeof import.meta !== "undefined" &&
+      (import.meta as any).env?.MODE !== "production"
+    ) {
+      console.info(`[API Info] ${message}`, ...args);
+    }
+  },
+  warn: (message: string, ...args: any[]) => {
+    console.warn(`[API Warning] ${message}`, ...args);
+  },
+  error: (message: string, error?: any) => {
+    // Always log errors, but sanitize in production
+    if (
+      typeof import.meta !== "undefined" &&
+      (import.meta as any).env?.MODE === "production"
+    ) {
+      console.error(`[API Error] ${message}`);
+    } else {
+      console.error(`[API Error] ${message}`, error);
+    }
+  },
+};
+
+// Prefer import.meta.env for Vite, fallback to process.env, then default to localhost:8003
 const API_BASE_URL =
   (typeof import.meta !== "undefined" &&
     (import.meta as any).env?.VITE_API_BASE_URL) ||
   (typeof process !== "undefined" && process.env?.VITE_API_BASE_URL) ||
-  "http://127.0.0.1:8005/api/v1";
+  "http://127.0.0.1:8003/api/v1";
 
-// Log the computed base URL for debugging in dev/prod
-if (
-  typeof window !== "undefined" &&
-  typeof import.meta !== "undefined" &&
-  (import.meta as any).env?.MODE !== "production"
-) {
-  // eslint-disable-next-line no-console
-  console.debug("[API] baseURL:", API_BASE_URL);
-}
+// Log the computed base URL for debugging in development only
+logger.debug("API Base URL initialized", { baseURL: API_BASE_URL });
 
+/**
+ * Axios HTTP client instance
+ *
+ * Configuration:
+ * - Base URL from environment variables
+ * - JSON content type headers
+ * - 30 second timeout for requests
+ * - Automatic bearer token injection
+ * - Response error handling with auth redirect
+ */
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -33,7 +89,12 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
-// Add auth token to requests
+/**
+ * Request Interceptor
+ *
+ * Automatically injects authentication bearer token from localStorage
+ * into all outgoing requests if available.
+ */
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("msal.token");
@@ -43,15 +104,23 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
+    logger.error("Request interceptor error", error);
     return Promise.reject(error);
   }
 );
 
-// Handle response errors
+/**
+ * Response Interceptor
+ *
+ * Handles global error scenarios:
+ * - 401 Unauthorized: Clears auth data and redirects to login
+ * - Other errors: Passes through for handling by API methods
+ */
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      logger.warn("Unauthorized request detected, clearing session");
       localStorage.clear();
       if (typeof window !== "undefined") {
         window.location.href = "/login";
@@ -61,7 +130,16 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Types for API responses
+/**
+ * Type Definitions for API Responses
+ */
+
+/**
+ * Incident data structure from ServiceNow API
+ *
+ * Represents a single incident/ticket with all relevant details
+ * including assignee, status, priority, and timestamps.
+ */
 export interface Incident {
   sysId: string;
   incidentNumber: string;
@@ -73,11 +151,20 @@ export interface Incident {
   assignedTo: string;
   deviceName: string;
   createdBy: string;
-  callerId: string;
+  callerId: string | null;
+  callerName: string | null;
   openedAt: string;
   lastUpdatedAt: string;
 }
 
+/**
+ * Standard API response wrapper
+ *
+ * All API endpoints return data in this consistent format
+ * with success indicator, message, data payload, and request metadata.
+ *
+ * @template T - The type of data contained in the response
+ */
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -86,6 +173,9 @@ export interface ApiResponse<T> {
   request_id: string;
 }
 
+/**
+ * Collection wrapper for incidents
+ */
 export interface IncidentsData {
   incidents: Incident[];
 }
@@ -181,6 +271,7 @@ export const ticketsAPI = {
             assignedTo: incident.assignedTo,
             createdBy: incident.createdBy,
             callerId: incident.callerId,
+            callerName: incident.callerName,
             openedAt: incident.openedAt,
             lastUpdatedAt: incident.lastUpdatedAt,
             impact: incident.impact,
@@ -197,7 +288,7 @@ export const ticketsAPI = {
         response.data.message || "Failed to fetch user incidents"
       );
     } catch (error: any) {
-      console.error("API Error (user incidents):", error);
+      logger.error("Failed to fetch user incidents", error);
       return {
         data: [],
         success: false,
@@ -228,6 +319,7 @@ export const ticketsAPI = {
             assignedTo: incident.assignedTo,
             createdBy: incident.createdBy,
             callerId: incident.callerId,
+            callerName: incident.callerName,
             openedAt: incident.openedAt,
             lastUpdatedAt: incident.lastUpdatedAt,
             impact: incident.impact,
@@ -244,7 +336,7 @@ export const ticketsAPI = {
         response.data.message || "Failed to fetch device incidents"
       );
     } catch (error: any) {
-      console.error("API Error (device incidents):", error);
+      logger.error("Failed to fetch device incidents", error);
       return {
         data: [],
         success: false,
@@ -274,6 +366,7 @@ export const ticketsAPI = {
             assignedTo: incident.assignedTo,
             createdBy: incident.createdBy,
             callerId: incident.callerId,
+            callerName: incident.callerName,
             openedAt: incident.openedAt,
             lastUpdatedAt: incident.lastUpdatedAt,
             impact: incident.impact,
@@ -290,115 +383,21 @@ export const ticketsAPI = {
 
       throw new Error(response.data.message || "Failed to fetch tickets");
     } catch (error: any) {
-      console.error("API Error:", error);
+      logger.error("Failed to fetch tickets", error);
 
-      // Return mock data as fallback
-      console.warn("API failed, using mock data");
+      let errorMessage = "Unable to retrieve tickets";
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timeout - please try again";
+      } else if (error.code === "ERR_NETWORK" || !error.response) {
+        errorMessage = "Service temporarily unavailable";
+      } else if (error.response?.status >= 500) {
+        errorMessage = "Server error - please try again later";
+      }
+
       return {
-        data: [
-          {
-            id: "INC0012345",
-            sysId: "mock-sys-id-1",
-            status: "In Progress",
-            statusColor: "bg-[#ffedd4] text-[#c93400] border-transparent",
-            title: "Outlook not responding on LAPTOP-8X7D2K",
-            device: "LAPTOP-8X7D2K",
-            priority: "High",
-            priorityColor: "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]",
-            time: "2 hours ago",
-            assignedTo: "FS Cockpit Integration",
-            createdBy: "admin",
-            callerId: "John Doe",
-            openedAt: new Date().toISOString(),
-            lastUpdatedAt: new Date().toISOString(),
-            impact: 1,
-            active: true,
-          },
-          {
-            id: "INC0010148",
-            sysId: "mock-sys-id-2",
-            status: "New",
-            statusColor: "bg-[#dbeafe] text-[#1e40af] border-transparent",
-            title: "Printer Issue at Fountains Hills Safeway Branch",
-            device: "HP LaserJet Pro",
-            priority: "Medium",
-            priorityColor: "bg-[#fef9c2] text-[#a65f00] border-[#feef85]",
-            time: "5 hours ago",
-            assignedTo: "FS Cockpit Integration",
-            createdBy: "koreapitest",
-            callerId: "Sarah Johnson",
-            openedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-            lastUpdatedAt: new Date(
-              Date.now() - 5 * 60 * 60 * 1000
-            ).toISOString(),
-            impact: 2,
-            active: true,
-          },
-          {
-            id: "INC0002012",
-            sysId: "mock-sys-id-3",
-            status: "In Progress",
-            statusColor: "bg-[#ffedd4] text-[#c93400] border-transparent",
-            title: "Cannot access SAP Sales app",
-            device: "SAP Sales and Distribution",
-            priority: "High",
-            priorityColor: "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]",
-            time: "1 day ago",
-            assignedTo: "FS Cockpit Integration",
-            createdBy: "admin",
-            callerId: "Carol Coughlin",
-            openedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            lastUpdatedAt: new Date(
-              Date.now() - 24 * 60 * 60 * 1000
-            ).toISOString(),
-            impact: 1,
-            active: true,
-          },
-          {
-            id: "INC0024934",
-            sysId: "mock-sys-id-4",
-            status: "Resolved",
-            statusColor: "bg-[#d1fae5] text-[#065f46] border-transparent",
-            title: "Error installing software update",
-            device: "LAPTOP-9K2L5P",
-            priority: "Low",
-            priorityColor: "bg-[#fff4e6] text-[#d97706] border-[#fed7aa]",
-            time: "3 days ago",
-            assignedTo: "FS Cockpit Integration",
-            createdBy: "Nisarga",
-            callerId: "Jitin",
-            openedAt: new Date(
-              Date.now() - 3 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-            lastUpdatedAt: new Date(
-              Date.now() - 3 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-            impact: 2,
-            active: false,
-          },
-          {
-            id: "INC0024933",
-            sysId: "mock-sys-id-5",
-            status: "In Progress",
-            statusColor: "bg-[#ffedd4] text-[#c93400] border-transparent",
-            title: "Unable to print documents",
-            device: "Canon Printer MX920",
-            priority: "Medium",
-            priorityColor: "bg-[#fef9c2] text-[#a65f00] border-[#feef85]",
-            time: "6 hours ago",
-            assignedTo: "FS Cockpit Integration",
-            createdBy: "Nisarga",
-            callerId: "Jitin",
-            openedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-            lastUpdatedAt: new Date(
-              Date.now() - 6 * 60 * 60 * 1000
-            ).toISOString(),
-            impact: 2,
-            active: true,
-          },
-        ],
-        success: true,
-        message: "Using mock data (API unavailable)",
+        data: [],
+        success: false,
+        message: errorMessage,
       };
     }
   },
@@ -425,6 +424,7 @@ export const ticketsAPI = {
           assignedTo: incident.assignedTo,
           createdBy: incident.createdBy,
           callerId: incident.callerId,
+          callerName: incident.callerName,
           openedAt: incident.openedAt,
           lastUpdatedAt: incident.lastUpdatedAt,
           impact: incident.impact,
@@ -440,11 +440,70 @@ export const ticketsAPI = {
         response.data.message || "Failed to fetch incident details"
       );
     } catch (error: any) {
-      console.error("API Error (incident details):", error);
+      logger.error("Failed to fetch incident details", error);
       return {
         data: [],
         success: false,
         message: error?.message || "API error",
+      };
+    }
+  },
+
+  // Get full incident details for ticket details view
+  getIncidentDetails: async (incidentNumber: string) => {
+    try {
+      const response = await apiClient.get<ApiResponse<Incident>>(
+        `/servicenow/incident/${encodeURIComponent(incidentNumber)}/details`
+      );
+      if (response.data.success) {
+        // Transform single incident to UI format with full details
+        const incident = response.data.data;
+        const transformedData = {
+          id: incident.incidentNumber,
+          sysId: incident.sysId,
+          status: incident.status,
+          statusColor: getStatusColor(incident.status),
+          title: incident.shortDescription,
+          device: incident.deviceName || "N/A",
+          priority: mapPriorityToText(incident.priority),
+          priorityColor: getPriorityColor(incident.priority),
+          time: getTimeAgo(incident.openedAt),
+          assignedTo: incident.assignedTo,
+          createdBy: incident.createdBy,
+          callerId: incident.callerId,
+          callerName: incident.callerName,
+          openedAt: incident.openedAt,
+          lastUpdatedAt: incident.lastUpdatedAt,
+          impact: incident.impact,
+          active: incident.active,
+        };
+        return {
+          data: transformedData,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Incident details not available"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch full incident details", error);
+
+      let errorMessage = "Unable to retrieve incident details";
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timeout - please try again";
+      } else if (error.code === "ERR_NETWORK" || !error.response) {
+        errorMessage = "Service temporarily unavailable";
+      } else if (error.response?.status === 404) {
+        errorMessage = "Incident not found";
+      } else if (error.response?.status >= 500) {
+        errorMessage = "Server error - please try again later";
+      }
+
+      return {
+        data: null,
+        success: false,
+        message: errorMessage,
       };
     }
   },
@@ -512,6 +571,66 @@ export const ticketsAPI = {
   },
 };
 
+// Knowledge API types
+export interface KnowledgeArticle {
+  sysId: string;
+  number: string;
+  title: string;
+  shortDescription: string;
+  link: string;
+  knowledgeBase: string;
+  viewCount: number;
+  score: number;
+  workflow: string;
+  author: string;
+  publishedDate: string;
+}
+
+export interface KnowledgeData {
+  articles: KnowledgeArticle[];
+  count: number;
+  query: string;
+}
+
+export const knowledgeAPI = {
+  getKnowledgeArticles: async (incidentNumber: string, limit: number = 3) => {
+    try {
+      const response = await apiClient.get<ApiResponse<KnowledgeData>>(
+        `/servicenow/incident/${encodeURIComponent(
+          incidentNumber
+        )}/knowledge?limit=${limit}`
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data.articles,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Knowledge articles not available"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch knowledge articles", error);
+
+      let errorMessage = "Unable to retrieve knowledge articles";
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timeout - please try again";
+      } else if (error.code === "ERR_NETWORK" || !error.response) {
+        errorMessage = "Knowledge base temporarily unavailable";
+      } else if (error.response?.status === 404) {
+        errorMessage = "No relevant articles found";
+      }
+
+      return {
+        data: [],
+        success: false,
+        message: errorMessage,
+      };
+    }
+  },
+};
+
 export const diagnosticsAPI = {
   getRootCauses: async (ticketId: string) => {
     try {
@@ -549,6 +668,153 @@ export const systemStatusAPI = {
             color: "bg-[#00c950]",
           },
         ],
+      };
+    }
+  },
+};
+
+// Device API types
+export interface Computer {
+  sysId: string;
+  name: string;
+  hostName: string;
+  serialNumber: string;
+  assignedToId: string;
+  assignedToName: string;
+}
+
+export interface ComputersData {
+  computers: Computer[];
+  count: number;
+}
+
+export interface IntuneDevice {
+  deviceId: string;
+  deviceName: string;
+  userPrincipalName: string;
+  operatingSystem: string;
+  osVersion: string;
+  complianceState: string;
+  managedDeviceOwnerType: string;
+  enrolledDateTime: string;
+  lastSyncDateTime: string;
+  manufacturer: string;
+  model: string;
+  serialNumber: string;
+  isEncrypted: boolean;
+  userDisplayName: string;
+  totalStorageSpaceInBytes?: number;
+  freeStorageSpaceInBytes?: number;
+}
+
+export interface IntuneDevicesData {
+  devices: IntuneDevice[];
+}
+
+export const deviceAPI = {
+  // Get user devices from ServiceNow
+  getUserDevices: async (callerId: string) => {
+    try {
+      const response = await apiClient.get<ApiResponse<ComputersData>>(
+        `/servicenow/user/${encodeURIComponent(callerId)}/devices`
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data.computers,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(response.data.message || "Failed to fetch user devices");
+    } catch (error: any) {
+      logger.error("Failed to fetch user devices", error);
+      return {
+        data: [],
+        success: false,
+        message: error?.message || "API error",
+      };
+    }
+  },
+
+  // Get device details from Intune
+  getDeviceDetails: async (deviceName: string) => {
+    try {
+      const response = await apiClient.get<ApiResponse<IntuneDevicesData>>(
+        `/intune/devices/name/${encodeURIComponent(deviceName)}`
+      );
+      if (response.data.success && response.data.data.devices.length > 0) {
+        return {
+          data: response.data.data.devices[0],
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Failed to fetch device details"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch device details", error);
+      return {
+        data: null,
+        success: false,
+        message: error?.message || "API error",
+      };
+    }
+  },
+
+  // Orchestrated call to get device details
+  // Step 1: Get device name from ServiceNow if not provided
+  // Step 2: Get device details from Intune
+  getDeviceDetailsOrchestrated: async (
+    deviceName?: string,
+    callerId?: string
+  ) => {
+    try {
+      let finalDeviceName = deviceName;
+
+      // Step 1: If device name is empty and caller ID exists, get device name from ServiceNow
+      if ((!deviceName || deviceName === "N/A") && callerId) {
+        logger.debug(`Fetching device name for caller: ${callerId}`);
+        const devicesResponse = await deviceAPI.getUserDevices(callerId);
+
+        if (devicesResponse.success && devicesResponse.data.length > 0) {
+          finalDeviceName = devicesResponse.data[0].name;
+          logger.debug(`Found device name: ${finalDeviceName}`);
+        } else {
+          logger.warn("No devices found for caller");
+          return {
+            data: null,
+            success: false,
+            message: "No devices found for this user",
+          };
+        }
+      }
+
+      // Step 2: Get device details from Intune if we have a device name
+      if (finalDeviceName && finalDeviceName !== "N/A") {
+        logger.debug(`Fetching device details for: ${finalDeviceName}`);
+        return await deviceAPI.getDeviceDetails(finalDeviceName);
+      }
+
+      return {
+        data: null,
+        success: false,
+        message: "Device information not available for this incident",
+      };
+    } catch (error: any) {
+      logger.error("Failed to orchestrate device details fetch", error);
+
+      let errorMessage = "Unable to retrieve device information";
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timeout - please try again";
+      } else if (error.code === "ERR_NETWORK" || !error.response) {
+        errorMessage = "Device service temporarily unavailable";
+      }
+
+      return {
+        data: null,
+        success: false,
+        message: errorMessage,
       };
     }
   },

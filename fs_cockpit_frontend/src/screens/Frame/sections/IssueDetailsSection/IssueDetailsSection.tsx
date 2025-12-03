@@ -35,7 +35,6 @@ import {
   SparklesIcon,
   SearchIcon,
   LayoutDashboardIcon,
-  MonitorIcon,
 } from "lucide-react";
 
 // Removed local ticketData; we now rely on context tickets
@@ -178,7 +177,7 @@ export const IssueDetailsSection = (): JSX.Element => {
         </div>
         <div className="flex items-center gap-2 md:gap-3 relative">
           <div className="hidden md:block [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4">
-            {user?.email || user?.username || "john.doe@company.com"}
+            {user?.email || user?.username || "testadmin@ntt.com"}
           </div>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
@@ -198,10 +197,10 @@ export const IssueDetailsSection = (): JSX.Element => {
             <div className="absolute top-12 right-0 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
               <div className="px-4 py-2 border-b border-[#e1e8f0]">
                 <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
-                  {user?.name || "John Doe"}
+                  {user?.name || "Test Admin"}
                 </p>
                 <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
-                  {user?.email || user?.username || "john.doe@company.com"}
+                  {user?.email || user?.username || "testadmin@ntt.com"}
                 </p>
               </div>
               <button
@@ -221,7 +220,7 @@ export const IssueDetailsSection = (): JSX.Element => {
       {/* MAIN CONTENT AREA - FLEXIBLE */}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT SIDEBAR - RESPONSIVE WIDTH */}
-        <aside className="w-full md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex flex-col">
+        <aside className="hidden md:flex md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col">
           {/* TABS - TAKES REMAINING SPACE */}
           <Tabs
             defaultValue={activeTab || "search"}
@@ -502,10 +501,10 @@ export const IssueDetailsSection = (): JSX.Element => {
                             Reporter
                           </span>
                           <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5">
-                            John Doe
+                            Test Admin
                           </span>
                           <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
-                            john.doe@company.com
+                            testadmin@ntt.com
                           </span>
                         </div>
                       </div>
