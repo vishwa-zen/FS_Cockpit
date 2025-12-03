@@ -1,0 +1,127 @@
+name: Build and Deploy to ACR
+
+on:
+    workflow_dispatch:
+#   push:
+#     branches:
+#       - main
+#     paths:
+#       - 'fs_cockpit_backend/**'
+#       - 'fs_cockpit_frontend/**'
+#       - '.github/workflows/build-deploy.yml'
+
+env:
+    REGISTRY_LOGIN_SERVER: zenpocacr.azurecr.io
+    REGISTRY_USERNAME: zenpocacr
+    REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD}}
+    WEB_APP_NAME_BACKEND: ntt-ai-wapp
+    WEB_APP_NAME_FRONTEND: ntt-web-wapp
+    IMAGE_TAG: ${{ github.run_number }}
+    IMAGE_NAME_FRONTEND: fs-cockpit-frontend
+    IMAGE_NAME_BACKEND: fs-cockpit-backend
+    AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    # if: |
+    #   contains(github.event.head_commit.modified, 'fs_cockpit_backend') ||
+    #   github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_LOGIN_SERVER }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fs_cockpit_backend
+          file: ./fs_cockpit_backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME_BACKEND }}:${{ env.IMAGE_TAG }}
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    # if: |
+    #   contains(github.event.head_commit.modified, 'fs_cockpit_frontend') ||
+    #   github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_LOGIN_SERVER }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fs_cockpit_frontend
+          file: ./fs_cockpit_frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ env.IMAGE_TAG }}
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: build-backend
+    if: success()
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ env.AZURE_CREDENTIALS }}
+      - uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.WEB_APP_NAME_BACKEND }}
+          # images: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME_BACKEND }}:${{ env.IMAGE_TAG }}
+          slot-name: production
+          sitecontainers-config: >-
+            [
+            {
+                "name": "main",
+                "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.WEB_APP_NAME_BACKEND }}:${{ github.run_number }}",
+                "targetPort": 3000,
+                "isMain": true
+              }
+            ]
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    if: success()
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ env.AZURE_CREDENTIALS }}
+      - uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.WEB_APP_NAME_FRONTEND }}
+          # images: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME_FRONTEND }}:${{ env.IMAGE_TAG }}
+          slot-name: production
+          sitecontainers-config: >-
+            [
+            {
+                "name": "main",
+                "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.WEB_APP_NAME_FRONTEND }}:${{ github.run_number }}",
+                "targetPort": 3000,
+                "isMain": true
+              }
+            ]
