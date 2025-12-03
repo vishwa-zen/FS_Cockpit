@@ -55,6 +55,27 @@ class ServiceNowClient(BaseClient):
             logger.debug("User found", username=username, sys_id=results[0].get("sys_id", ""))
             return results[0].get("sys_id", "")
         return ""
+    
+    async def fetch_user_by_sys_id(self, user_sys_id: str) -> dict | None:
+        """Fetch user details by sys_id.
+        
+        Args:
+            user_sys_id (str): The sys_id of the user
+            
+        Returns:
+            dict: User details including email, name, etc. or None if not found
+        """
+        endpoint = f"/api/now/table/sys_user/{user_sys_id}"
+        params = {
+            "sysparm_fields": "sys_id,user_name,email,name,first_name,last_name",
+            "sysparm_display_value": "all"
+        }
+        try:
+            response = await self.get(endpoint, params=params)
+            return response.get("result")
+        except httpx.HTTPError:
+            logger.warning("Failed to fetch user by sys_id", user_sys_id=user_sys_id)
+            return None
         
     async def fetch_incidents_by_technician(
         self,
@@ -63,7 +84,7 @@ class ServiceNowClient(BaseClient):
         limit: int = 50,
         sysparm_display_value: str = "all",
         sysparm_exclude_reference_link: bool = True,
-        sysparm_fields: str = "sys_id,number,short_description,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+        sysparm_fields: str = "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
         cmdb_ci_name: str | None = None,
     ) -> dict:
         """
@@ -136,7 +157,7 @@ class ServiceNowClient(BaseClient):
             "caller_id": caller_sys_id,
             "active": "true",
             "sysparm_limit": 50,
-            "sysparm_fields": _fields or "sys_id,number,short_description,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+            "sysparm_fields": _fields or "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
         }
         # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
         if limit is not None:
@@ -160,7 +181,7 @@ class ServiceNowClient(BaseClient):
             dict: A dictionary containing incident information.
         """
         endpoint = "/api/now/table/incident"
-        params = {"cmdb_ci.name": device_name, "sysparm_fields": _fields or "sys_id,number,short_description,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on"}
+        params = {"cmdb_ci.name": device_name, "sysparm_fields": _fields or "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on"}
         # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
         if limit is not None:
             params["sysparm_limit"] = limit
@@ -173,6 +194,28 @@ class ServiceNowClient(BaseClient):
             raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
         return response
     
+    async def fetch_computer_by_sys_id(self, sys_id: str) -> dict | None:
+        """
+        Fetch computer details by sys_id.
+        
+        Args:
+            sys_id (str): The sys_id of the computer (cmdb_ci)
+            
+        Returns:
+            dict: Computer details or None if not found
+        """
+        endpoint = f"/api/now/table/cmdb_ci_computer/{sys_id}"
+        params = {
+            "sysparm_fields": "name,host_name,sys_id",
+            "sysparm_display_value": "all"
+        }
+        try:
+            response = await self.get(endpoint, params=params)
+            return response.get("result")
+        except httpx.HTTPError:
+            logger.warning("Failed to fetch computer by sys_id", sys_id=sys_id)
+            return None
+    
     async def fetch_incident_details(self, incident_number: str, _fields: list[str] | None = None) -> dict:
         """
         Retrieve details of a specific incident.
@@ -184,9 +227,11 @@ class ServiceNowClient(BaseClient):
         """
         endpoint = "/api/now/table/incident"
         params = {
-            "number": incident_number,
+            "sysparm_query": f"number={incident_number}",
+            "sysparm_fields": "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+            "sysparm_display_value": "all",
+            "sysparm_limit": 1
         }
-        # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
         logger.debug("Fetching incident details from ServiceNow", incident_number=incident_number)
         try:
             response = await self.get(endpoint, params=params)

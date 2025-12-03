@@ -67,6 +67,59 @@ class ServiceNowService:
 
     # Extract string fields using the shared utility
 
+    async def resolve_device_name(self, cmdb_ci_value: str) -> str | None:
+        """
+        Resolve device name from cmdb_ci value (could be sys_id or name).
+        
+        Args:
+            cmdb_ci_value: Either a sys_id or device name
+            
+        Returns:
+            Device name or None
+        """
+        if not cmdb_ci_value:
+            return None
+            
+        # If it looks like a sys_id (32 hex chars), fetch the computer name
+        if len(cmdb_ci_value) == 32 and all(c in '0123456789abcdef' for c in cmdb_ci_value.lower()):
+            async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
+                computer = await client.fetch_computer_by_sys_id(cmdb_ci_value)
+                if computer:
+                    return IncidentUtils.extract_str(computer.get("name")) or IncidentUtils.extract_str(computer.get("host_name"))
+            return None
+        
+        # Otherwise, assume it's already a device name
+        return cmdb_ci_value
+    
+    async def get_device_name_from_caller(self, caller_sys_id: str) -> str | None:
+        """
+        Get device name from caller by fetching user's devices from ServiceNow.
+        
+        Args:
+            caller_sys_id: The sys_id of the caller from incident
+            
+        Returns:
+            Device name or None
+        """
+        if not caller_sys_id:
+            return None
+        
+        logger.info("Fetching devices from ServiceNow for caller", caller_sys_id=caller_sys_id)
+        
+        # Get devices assigned to the user from ServiceNow
+        devices = await self.fetch_devices_by_user(caller_sys_id)
+        
+        if not devices:
+            logger.warning("No devices found for caller", caller_sys_id=caller_sys_id)
+            return None
+        
+        # Return the first device's name
+        first_device = devices[0]
+        device_name = first_device.name
+        logger.info("Found device from ServiceNow", device_name=device_name, caller_sys_id=caller_sys_id)
+        
+        return device_name
+    
     def _map_incident_to_dto(self, rec: dict) -> IncidentDTO:
         # Extract all fields as strings, using display_value if present
         impact_val = rec.get("impact")
@@ -96,6 +149,8 @@ class ServiceNowService:
             incidentNumber=IncidentUtils.extract_str(rec.get("number")),
             shortDescription=IncidentUtils.extract_str(rec.get("short_description")),
             description=IncidentUtils.extract_str(rec.get("description")),
+            category=IncidentUtils.extract_str(rec.get("category")),
+            subcategory=IncidentUtils.extract_str(rec.get("subcategory")),
             priority=IncidentUtils.extract_str(rec.get("priority")),
             impact=impact_val,
             status=status,

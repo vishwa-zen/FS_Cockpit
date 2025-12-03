@@ -111,7 +111,8 @@ class IntuneClient(BaseClient):
                 "service": "Microsoft Graph API",
                 "tenant_id": self.tenant_id,
                 "client_id": self.client_id,
-                "token_acquired": bool(token)
+                "token_acquired": bool(token),
+                "access_token": token
             }
         except ExternalServiceError as e:
             logger.error("Intune authentication failed", error=str(e))

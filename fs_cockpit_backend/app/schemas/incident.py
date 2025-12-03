@@ -10,6 +10,8 @@ class IncidentDTO(BaseModel):
     incidentNumber: str
     shortDescription: Optional[str]
     description: Optional[str]  # Full detailed description
+    category: Optional[str]  # Incident category (e.g., 'hardware', 'software', 'network', 'inquiry')
+    subcategory: Optional[str]  # Incident subcategory for more specific classification
     priority: Optional[str]
     impact: Optional[int]
     status: Optional[str]  # This will now contain state.display_value

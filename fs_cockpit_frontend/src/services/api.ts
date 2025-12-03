@@ -711,6 +711,95 @@ export interface IntuneDevicesData {
   devices: IntuneDevice[];
 }
 
+// Remote Actions API types
+export interface RemoteAction {
+  actionId: string;
+  actionName: string;
+  actionType: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  deviceId: string | null;
+  deviceName: string;
+  executedBy: string;
+  result: {
+    inputs: string;
+    outputs: string;
+    purpose: string;
+    status_details: string;
+    nql_id: string;
+    external_reference: string;
+    external_source: string;
+    internal_source: string;
+  };
+}
+
+export interface RemoteActionsData {
+  incident_number: string;
+  device_name: string;
+  category: string;
+  recommendations: RemoteAction[];
+  total: number;
+  message: string | null;
+}
+
+export const remoteActionsAPI = {
+  getRecommendations: async (
+    incidentNumber: string,
+    deviceName?: string,
+    callerId?: string,
+    limit: number = 3
+  ) => {
+    try {
+      const requestBody: any = {
+        incident_number: incidentNumber,
+        limit,
+      };
+
+      // Add optional fields if provided
+      if (deviceName && deviceName !== "N/A") {
+        requestBody.device_name = deviceName;
+      }
+      if (callerId) {
+        requestBody.caller_id = callerId;
+      }
+
+      const response = await apiClient.post<ApiResponse<RemoteActionsData>>(
+        "/nextthink/recommendations",
+        requestBody
+      );
+
+      if (response.data.success) {
+        return {
+          data: response.data.data.recommendations,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Failed to fetch remote actions"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch remote actions", error);
+
+      let errorMessage = "Unable to retrieve recommended actions";
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timeout - please try again";
+      } else if (error.code === "ERR_NETWORK" || !error.response) {
+        errorMessage = "Actions service temporarily unavailable";
+      } else if (error.response?.status === 404) {
+        errorMessage = "No recommendations found for this incident";
+      }
+
+      return {
+        data: [],
+        success: false,
+        message: errorMessage,
+      };
+    }
+  },
+};
+
 export const deviceAPI = {
   // Get user devices from ServiceNow
   getUserDevices: async (callerId: string) => {

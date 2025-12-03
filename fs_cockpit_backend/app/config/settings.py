@@ -42,7 +42,11 @@ class Settings(BaseSettings):
     
     # NextThink Configuration (support legacy NEXTHINK_* env names)
     NEXTTHINK_BASE_URL: str = Field(..., env=("NEXTTHINK_BASE_URL", "NEXTHINK_BASE_URL"))
-    NEXTTHINK_API_KEY: str = Field(..., env=("NEXTTHINK_API_KEY", "NEXTHINK_API_KEY"))
+    NEXTTHINK_API_URL: str = Field(..., env=("NEXTTHINK_API_URL", "NEXTHINK_API_URL"))
+    NEXTTHINK_USER_NAME: str = Field(..., env=("NEXTTHINK_USER_NAME", "NEXTHINK_USER_NAME"))
+    NEXTTHINK_PASWORD: str = Field(..., env=("NEXTTHINK_PASWORD", "NEXTHINK_PASWORD"))
+    NEXTTHINK_GRANT_TYPE: str = Field(default="client_credentials", env=("NEXTTHINK_GRANT_TYPE", "NEXTHINK_GRANT_TYPE"))
+    NEXTTHINK_SCOPE: str = Field(default="service:integration", env=("NEXTTHINK_SCOPE", "NEXTHIK_SCOPE"))
     
     # Http Configuration
     HTTP_TIMEOUT_SECONDS: int = 30

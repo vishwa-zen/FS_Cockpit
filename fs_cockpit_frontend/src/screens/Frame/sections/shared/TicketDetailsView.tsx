@@ -54,8 +54,10 @@ import {
   deviceAPI,
   ticketsAPI,
   knowledgeAPI,
+  remoteActionsAPI,
   IntuneDevice,
   KnowledgeArticle,
+  RemoteAction,
 } from "../../../../services/api";
 
 /**
@@ -109,34 +111,23 @@ const rootCauseData = [
   },
 ];
 
-const actionsData = [
-  {
-    title: "Run Hardware Diagnostics",
-    priority: "High",
-    priorityColor: "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]",
-    description:
-      "Comprehensive hardware test including battery, thermal, and memory diagnostics",
-    duration: "15 mins",
-    confidence: "95% confidence",
-  },
-  {
-    title: "Check Battery Health & Calibrate",
-    priority: "High",
-    priorityColor: "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]",
-    description: "Assess battery degradation and recalibrate charging cycles",
-    duration: "10 mins",
-    confidence: "88% confidence",
-  },
-  {
-    title: "Clean Cooling System",
-    priority: "Medium",
-    priorityColor: "bg-[#fef9c2] text-[#a65f00] border-[#feef85]",
-    description:
-      "Schedule cleaning of fans and heatsink to resolve thermal issues",
-    duration: "30 mins",
-    confidence: "82% confidence",
-  },
-];
+/**
+ * Get status badge color based on action status
+ *
+ * @param status - Action execution status
+ * @returns Tailwind CSS classes for badge styling
+ */
+const getActionStatusColor = (status: string): string => {
+  const statusLower = status.toLowerCase();
+  if (statusLower === "success") {
+    return "bg-[#d1fae5] text-[#065f46] border-transparent";
+  } else if (statusLower === "failure" || statusLower === "failed") {
+    return "bg-[#ffe2e2] text-[#c10007] border-transparent";
+  } else if (statusLower === "pending" || statusLower === "running") {
+    return "bg-[#fef9c2] text-[#a65f00] border-transparent";
+  }
+  return "bg-[#f3f4f6] text-[#374151] border-transparent";
+};
 
 export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   ticket: initialTicket,
@@ -152,14 +143,18 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   >([]);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(true);
   const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
+  const [remoteActions, setRemoteActions] = useState<RemoteAction[]>([]);
+  const [isLoadingActions, setIsLoadingActions] = useState(true);
+  const [actionsError, setActionsError] = useState<string | null>(null);
 
   /**
    * Fetch all ticket-related data in parallel
    *
-   * Executes three API calls simultaneously for optimal performance:
+   * Executes four API calls simultaneously for optimal performance:
    * 1. Ticket details - Full incident information
    * 2. Device details - Hardware specs and health status
    * 3. Knowledge articles - Relevant documentation
+   * 4. Remote actions - Recommended remediation actions
    *
    * Uses Promise.allSettled to ensure independent error handling
    * for each API call without blocking others.
@@ -169,23 +164,36 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       setIsLoadingTicket(true);
       setIsLoadingDevice(true);
       setIsLoadingKnowledge(true);
+      setIsLoadingActions(true);
       setDeviceError(null);
       setKnowledgeError(null);
+      setActionsError(null);
 
       try {
         // Start all API calls in parallel for optimal performance
-        const [ticketResponse, deviceResponse, knowledgeResponse] =
-          await Promise.allSettled([
-            // Fetch ticket details
-            ticketsAPI.getIncidentDetails(initialTicket.id),
-            // Fetch device details (using initial ticket data)
-            deviceAPI.getDeviceDetailsOrchestrated(
-              initialTicket.device,
-              initialTicket.callerId || undefined
-            ),
-            // Fetch knowledge articles
-            knowledgeAPI.getKnowledgeArticles(initialTicket.id, 3),
-          ]);
+        const [
+          ticketResponse,
+          deviceResponse,
+          knowledgeResponse,
+          actionsResponse,
+        ] = await Promise.allSettled([
+          // Fetch ticket details
+          ticketsAPI.getIncidentDetails(initialTicket.id),
+          // Fetch device details (using initial ticket data)
+          deviceAPI.getDeviceDetailsOrchestrated(
+            initialTicket.device,
+            initialTicket.callerId || undefined
+          ),
+          // Fetch knowledge articles
+          knowledgeAPI.getKnowledgeArticles(initialTicket.id, 3),
+          // Fetch remote actions/recommendations
+          remoteActionsAPI.getRecommendations(
+            initialTicket.id,
+            initialTicket.device,
+            initialTicket.callerId || undefined,
+            3
+          ),
+        ]);
 
         // Handle ticket details response
         if (
@@ -198,6 +206,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
           // Fallback to initial ticket data if API fails
           setTicket(initialTicket);
         }
+        setIsLoadingTicket(false);
 
         // Handle device details response with contextual error messages
         if (
@@ -219,11 +228,12 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
             ) {
               errorMsg = apiMessage;
             } else {
-              errorMsg = "Device information not found";
+              errorMsg = "Device information not found for this incident";
             }
           }
           setDeviceError(errorMsg);
         }
+        setIsLoadingDevice(false);
 
         // Handle knowledge articles response with contextual error messages
         if (
@@ -250,15 +260,44 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
           }
           setKnowledgeError(errorMsg);
         }
+        setIsLoadingKnowledge(false);
+
+        // Handle remote actions response with contextual error messages
+        if (
+          actionsResponse.status === "fulfilled" &&
+          actionsResponse.value.success &&
+          actionsResponse.value.data
+        ) {
+          setRemoteActions(actionsResponse.value.data);
+        } else {
+          let errorMsg = "Unable to load recommended actions";
+          if (actionsResponse.status === "rejected") {
+            errorMsg = "Actions service is temporarily unavailable";
+          } else if (actionsResponse.status === "fulfilled") {
+            const apiMessage = actionsResponse.value.message;
+            // Don't show generic success messages as errors
+            if (
+              apiMessage &&
+              !apiMessage.includes("Operation completed successfully")
+            ) {
+              errorMsg = apiMessage;
+            } else {
+              errorMsg = "No recommendations available";
+            }
+          }
+          setActionsError(errorMsg);
+        }
+        setIsLoadingActions(false);
       } catch (error) {
         // Global error handler for unexpected failures
         setTicket(initialTicket);
         setDeviceError("Unable to connect to device service");
         setKnowledgeError("Unable to connect to knowledge base");
-      } finally {
+        setActionsError("Unable to connect to actions service");
         setIsLoadingTicket(false);
         setIsLoadingDevice(false);
         setIsLoadingKnowledge(false);
+        setIsLoadingActions(false);
       }
     };
 
@@ -717,42 +756,68 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                 Actions
               </h3>
             </div>
-            <div className="flex flex-col gap-3">
-              {actionsData.map((action, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col gap-3 p-4 bg-[#f8fafc] rounded-lg border-[0.67px] border-[#e1e8f0]"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070F26] text-sm leading-5 flex-1 break-words">
-                      {action.title}
+            {isLoadingActions ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
+              </div>
+            ) : actionsError ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
+                <AlertCircle className="w-10 h-10 text-[#61738d] opacity-50" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
+                  {actionsError}
+                </span>
+              </div>
+            ) : remoteActions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
+                <ActivityIcon className="w-10 h-10 text-[#61738d] opacity-50" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
+                  No recommended actions available for this incident
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-2">
+                {remoteActions.map((action) => (
+                  <div
+                    key={action.actionId}
+                    className="flex flex-col gap-3 p-4 bg-[#f8fafc] rounded-lg border-[0.67px] border-[#e1e8f0]"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070F26] text-sm leading-5 flex-1 break-words">
+                        {action.actionName}
+                      </p>
+                      <Badge
+                        className={`h-auto px-2 py-0.5 rounded-lg text-xs ${getActionStatusColor(
+                          action.status
+                        )} flex-shrink-0`}
+                      >
+                        {action.status.charAt(0).toUpperCase() +
+                          action.status.slice(1)}
+                      </Badge>
+                    </div>
+                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">
+                      {action.actionName}
                     </p>
-                    <Badge
-                      className={`h-auto px-2 py-0.5 rounded-lg text-xs border-[0.67px] ${action.priorityColor} flex-shrink-0`}
-                    >
-                      {action.priority}
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#90a1b8] text-xs leading-4">
+                        Type: {action.actionType}
+                      </span>
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#90a1b8] text-xs leading-4">
+                        Executed by: {action.executedBy}
+                      </span>
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#90a1b8] text-xs leading-4">
+                        Updated: {formatDate(action.updatedAt)}
+                      </span>
+                    </div>
+                    <Button className="w-full h-auto px-4 py-2 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2">
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-sm">
+                        Execute
+                      </span>
+                      <ChevronRightIcon className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">
-                    {action.description}
-                  </p>
-                  <div className="flex flex-col gap-1">
-                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#90a1b8] text-xs leading-4">
-                      {action.duration}
-                    </span>
-                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#90a1b8] text-xs leading-4">
-                      {action.confidence}
-                    </span>
-                  </div>
-                  <Button className="w-full h-auto px-4 py-2 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2">
-                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-sm">
-                      Execute
-                    </span>
-                    <ChevronRightIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
