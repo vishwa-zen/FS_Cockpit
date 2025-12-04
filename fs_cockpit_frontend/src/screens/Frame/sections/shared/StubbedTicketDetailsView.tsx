@@ -1,19 +1,8 @@
 /**
- * TicketDetailsView Component
+ * StubbedTicketDetailsView Component
  *
- * Displays comprehensive ticket information including:
- * - Ticket details (status, priority, caller, dates)
- * - Device information (manufacturer, model, storage, sync status)
- * - Knowledge base articles (relevant documentation and solutions)
- * - Recommended actions (diagnostic steps and remediation)
- *
- * Features:
- * - Parallel API data fetching for optimal performance
- * - Loading states for all data sections
- * - Graceful error handling with user-friendly messages
- * - Real-time device synchronization status
- *
- * @param {TicketDetailsViewProps} props - Component props containing ticket data
+ * Displays stubbed/demo ticket details for Copilot tab demonstration.
+ * Uses predefined API responses instead of making real API calls.
  */
 
 import React, { useEffect, useState } from "react";
@@ -21,7 +10,6 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import { Progress } from "../../../../components/ui/progress";
 import {
   ActionsIcon,
   IncidentIcon,
@@ -47,24 +35,13 @@ import {
   ArrowLeft,
   WifiIcon,
   ActivityIcon,
-  AlertCircle,
-  BookOpen,
-  Leaf,
 } from "lucide-react";
 import {
-  deviceAPI,
-  ticketsAPI,
-  knowledgeAPI,
-  remoteActionsAPI,
   IntuneDevice,
   KnowledgeArticle,
   RemoteAction,
 } from "../../../../services/api";
 
-/**
- * Ticket interface definition
- * Represents the core ticket/incident data structure
- */
 interface Ticket {
   id: string;
   status: string;
@@ -81,44 +58,147 @@ interface Ticket {
   lastUpdatedAt?: string;
 }
 
-/**
- * Component props interface
- */
-interface TicketDetailsViewProps {
+interface StubbedTicketDetailsViewProps {
   ticket: Ticket;
-  showSustainabilityScore?: boolean;
 }
 
-const rootCauseData = [
+// Stubbed device details
+const stubbedDeviceDetails: IntuneDevice = {
+  deviceId: "abc123-456-789",
+  deviceName: "CPC-vijay-BSCCU",
+  userPrincipalName: "vijay.kumar@company.com",
+  operatingSystem: "Windows",
+  osVersion: "10.0.19045.3803",
+  complianceState: "compliant",
+  managedDeviceOwnerType: "company",
+  enrolledDateTime: "2024-01-15T08:30:00Z",
+  lastSyncDateTime: "2025-12-03T11:45:00Z",
+  manufacturer: "Dell Inc.",
+  model: "Latitude 5420",
+  serialNumber: "BSCCU2025",
+  isEncrypted: true,
+  userDisplayName: "Vijay Kumar",
+  totalStorageSpaceInBytes: 512000000000,
+  freeStorageSpaceInBytes: 156000000000,
+};
+
+// Stubbed knowledge articles
+const stubbedKnowledgeArticles: KnowledgeArticle[] = [
   {
-    title: "Battery degradation affecting system performance",
-    confidence: "85%",
-    description:
-      "Battery health at 67%, charging limited to 60%, and thermal issues suggest battery degradation impacting overall system performance",
-    progress: 85,
+    sysId: "kb001",
+    number: "KB0001234",
+    title: "Troubleshooting Laptop Battery Drain Issues",
+    shortDescription:
+      "Step-by-step guide to diagnose and resolve battery drainage problems in Windows laptops",
+    link: "https://knowledge.company.com/kb0001234",
+    knowledgeBase: "IT Support",
+    viewCount: 1247,
+    score: 92,
+    workflow: "published",
+    author: "IT Support Team",
+    publishedDate: "2025-11-15T00:00:00Z",
   },
   {
-    title: "Thermal throttling due to dust buildup",
-    confidence: "78%",
-    description:
-      "User reports device getting hot. Combined with performance issues, suggests CPU throttling due to cooling system obstruction",
-    progress: 78,
+    sysId: "kb002",
+    number: "KB0001567",
+    title: "Laptop Overheating Prevention and Solutions",
+    shortDescription:
+      "Best practices for preventing laptop overheating and thermal throttling",
+    link: "https://knowledge.company.com/kb0001567",
+    knowledgeBase: "IT Support",
+    viewCount: 892,
+    score: 88,
+    workflow: "published",
+    author: "Hardware Team",
+    publishedDate: "2025-10-22T00:00:00Z",
   },
   {
-    title: "Memory leak in background processes",
-    confidence: "72%",
-    description:
-      "Slowness when running multiple applications indicates possible memory management issues",
-    progress: 72,
+    sysId: "kb003",
+    number: "KB0001890",
+    title: "Dell Latitude Battery Calibration Guide",
+    shortDescription:
+      "Complete guide for calibrating Dell Latitude laptop batteries",
+    link: "https://knowledge.company.com/kb0001890",
+    knowledgeBase: "IT Support",
+    viewCount: 654,
+    score: 85,
+    workflow: "published",
+    author: "Hardware Team",
+    publishedDate: "2025-09-10T00:00:00Z",
   },
 ];
 
-/**
- * Get status badge color based on action status
- *
- * @param status - Action execution status
- * @returns Tailwind CSS classes for badge styling
- */
+// Stubbed remote actions
+const stubbedRemoteActions: RemoteAction[] = [
+  {
+    actionId: "8112ab5d-710d-4746-9b24-067b3a3fa3c7",
+    actionName: "Get Intune device status",
+    actionType: "Cloud",
+    status: "success",
+    createdAt: "2025-12-03 07:04:00",
+    updatedAt: "2025-12-03 07:04:25",
+    deviceId: null,
+    deviceName: "CPC-vijay-BSCCU",
+    executedBy: "automatic",
+    result: {
+      inputs: "{}",
+      outputs:
+        '{"mdm_service_running":1,"auto_enrollment_error_datetime":null,"days_to_cert_expiry":152,"mdm_service_installed":1,"onboarding_certificate_installed":1,"auto_enrollment_error_detected":0,"auto_enrollment_error_message":"-","enrollment_error_detected":0,"onboarding_certificate_is_valid":1,"health_checks_all_passed":0,"device_enrollment_service_installed":1,"enrollment_error_message":"-","enrollment_error_datetime":null}',
+      purpose: "remediation",
+      status_details: "PowerShell exited with code 0\n",
+      nql_id: "get_intune_device_status",
+      external_reference: "",
+      external_source: "",
+      internal_source: "",
+    },
+  },
+  {
+    actionId: "fba7510c-90b8-4913-8e18-20a0a9626bd4",
+    actionName: "Set Outlook online",
+    actionType: "Cloud",
+    status: "success",
+    createdAt: "2025-12-01 07:19:16",
+    updatedAt: "2025-12-01 07:19:24",
+    deviceId: null,
+    deviceName: "CPC-vijay-BSCCU",
+    executedBy: "API",
+    result: {
+      inputs: '{"CampaignId":""}',
+      outputs: "{}",
+      purpose: "remediation",
+      status_details:
+        "Outlook set to online and restarted correctly. \r\nPowerShell exited with code 0\n",
+      nql_id: "set_outlook_online_windows",
+      external_reference: "",
+      external_source: "",
+      internal_source: "",
+    },
+  },
+  {
+    actionId: "301f9de8-333b-456d-ab87-7aed47e51e44",
+    actionName: "Restart Windows Device (Infinity)",
+    actionType: "Cloud",
+    status: "failure",
+    createdAt: "2025-12-02 09:34:00",
+    updatedAt: "2025-12-02 09:34:43",
+    deviceId: null,
+    deviceName: "CPC-vijay-BSCCU",
+    executedBy: "automatic",
+    result: {
+      inputs:
+        '{"NumberOfDaysSinceLastReboot":"7","TestPendingRestart":"True","ShowCampaign":"Always","CampaignId":"6ea6139c-661b-4eff-a526-a424d4c0e11f","PostponeGracePeriodInDays":"7","RestartDelayInSeconds":"210","CampaignTimeout":"300"}',
+      outputs: "{}",
+      purpose: "remediation",
+      status_details:
+        "Version: 4.0.1.0. Line '584': Unable to notify the Collector component that controls campaign notifications. \r\nPowerShell exited with code 1\n",
+      nql_id: "#restart_windows_device_infinity",
+      external_reference: "",
+      external_source: "",
+      internal_source: "",
+    },
+  },
+];
+
 const getActionStatusColor = (status: string): string => {
   const statusLower = status.toLowerCase();
   if (statusLower === "success") {
@@ -131,200 +211,27 @@ const getActionStatusColor = (status: string): string => {
   return "bg-[#f3f4f6] text-[#374151] border-transparent";
 };
 
-export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
-  ticket: initialTicket,
-  showSustainabilityScore = false,
-}) => {
+export const StubbedTicketDetailsView: React.FC<
+  StubbedTicketDetailsViewProps
+> = ({ ticket: initialTicket }) => {
   const navigate = useNavigate();
-  const [ticket, setTicket] = useState<Ticket>(initialTicket);
-  const [deviceDetails, setDeviceDetails] = useState<IntuneDevice | null>(null);
-  const [isLoadingDevice, setIsLoadingDevice] = useState(true);
-  const [deviceError, setDeviceError] = useState<string | null>(null);
-  const [isLoadingTicket, setIsLoadingTicket] = useState(true);
-  const [knowledgeArticles, setKnowledgeArticles] = useState<
-    KnowledgeArticle[]
-  >([]);
-  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(true);
-  const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
-  const [remoteActions, setRemoteActions] = useState<RemoteAction[]>([]);
-  const [isLoadingActions, setIsLoadingActions] = useState(true);
-  const [actionsError, setActionsError] = useState<string | null>(null);
+  const [ticket] = useState<Ticket>(initialTicket);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
-  /**
-   * Fetch all ticket-related data in parallel
-   *
-   * Executes four API calls simultaneously for optimal performance:
-   * 1. Ticket details - Full incident information
-   * 2. Device details - Hardware specs and health status
-   * 3. Knowledge articles - Relevant documentation
-   * 4. Remote actions - Recommended remediation actions
-   *
-   * Uses Promise.allSettled to ensure independent error handling
-   * for each API call without blocking others.
-   */
+  // Simulate loading delay
   useEffect(() => {
-    const fetchAllData = async () => {
-      setIsLoadingTicket(true);
-      setIsLoadingDevice(true);
-      setIsLoadingKnowledge(true);
-      setIsLoadingActions(true);
-      setDeviceError(null);
-      setKnowledgeError(null);
-      setActionsError(null);
+    const timer = setTimeout(() => {
+      setIsLoadingData(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
-      try {
-        // Start all API calls in parallel for optimal performance
-        const [
-          ticketResponse,
-          deviceResponse,
-          knowledgeResponse,
-          actionsResponse,
-        ] = await Promise.allSettled([
-          // Fetch ticket details
-          ticketsAPI.getIncidentDetails(initialTicket.id),
-          // Fetch device details (using initial ticket data)
-          deviceAPI.getDeviceDetailsOrchestrated(
-            initialTicket.device,
-            initialTicket.callerId || undefined
-          ),
-          // Fetch knowledge articles
-          knowledgeAPI.getKnowledgeArticles(initialTicket.id, 3),
-          // Fetch remote actions/recommendations
-          remoteActionsAPI.getRecommendations(
-            initialTicket.id,
-            initialTicket.device,
-            initialTicket.callerId || undefined,
-            3
-          ),
-        ]);
-
-        // Handle ticket details response
-        if (
-          ticketResponse.status === "fulfilled" &&
-          ticketResponse.value.success &&
-          ticketResponse.value.data
-        ) {
-          setTicket(ticketResponse.value.data);
-        } else {
-          // Fallback to initial ticket data if API fails
-          setTicket(initialTicket);
-        }
-        setIsLoadingTicket(false);
-
-        // Handle device details response with contextual error messages
-        if (
-          deviceResponse.status === "fulfilled" &&
-          deviceResponse.value.success &&
-          deviceResponse.value.data
-        ) {
-          setDeviceDetails(deviceResponse.value.data);
-        } else {
-          let errorMsg = "Unable to load device information";
-          if (deviceResponse.status === "rejected") {
-            errorMsg = "Device service is temporarily unavailable";
-          } else if (deviceResponse.status === "fulfilled") {
-            const apiMessage = deviceResponse.value.message;
-            // Don't show generic success messages as errors
-            if (
-              apiMessage &&
-              !apiMessage.includes("Operation completed successfully")
-            ) {
-              errorMsg = apiMessage;
-            } else {
-              errorMsg = "Device information not found for this incident";
-            }
-          }
-          setDeviceError(errorMsg);
-        }
-        setIsLoadingDevice(false);
-
-        // Handle knowledge articles response with contextual error messages
-        if (
-          knowledgeResponse.status === "fulfilled" &&
-          knowledgeResponse.value.success &&
-          knowledgeResponse.value.data
-        ) {
-          setKnowledgeArticles(knowledgeResponse.value.data);
-        } else {
-          let errorMsg = "Unable to load knowledge articles";
-          if (knowledgeResponse.status === "rejected") {
-            errorMsg = "Knowledge base service is temporarily unavailable";
-          } else if (knowledgeResponse.status === "fulfilled") {
-            const apiMessage = knowledgeResponse.value.message;
-            // Don't show generic success messages as errors
-            if (
-              apiMessage &&
-              !apiMessage.includes("Operation completed successfully")
-            ) {
-              errorMsg = apiMessage;
-            } else {
-              errorMsg = "No relevant articles found";
-            }
-          }
-          setKnowledgeError(errorMsg);
-        }
-        setIsLoadingKnowledge(false);
-
-        // Handle remote actions response with contextual error messages
-        if (
-          actionsResponse.status === "fulfilled" &&
-          actionsResponse.value.success &&
-          actionsResponse.value.data
-        ) {
-          setRemoteActions(actionsResponse.value.data);
-        } else {
-          let errorMsg = "Unable to load recommended actions";
-          if (actionsResponse.status === "rejected") {
-            errorMsg = "Actions service is temporarily unavailable";
-          } else if (actionsResponse.status === "fulfilled") {
-            const apiMessage = actionsResponse.value.message;
-            // Don't show generic success messages as errors
-            if (
-              apiMessage &&
-              !apiMessage.includes("Operation completed successfully")
-            ) {
-              errorMsg = apiMessage;
-            } else {
-              errorMsg = "No recommendations available";
-            }
-          }
-          setActionsError(errorMsg);
-        }
-        setIsLoadingActions(false);
-      } catch (error) {
-        // Global error handler for unexpected failures
-        setTicket(initialTicket);
-        setDeviceError("Unable to connect to device service");
-        setKnowledgeError("Unable to connect to knowledge base");
-        setActionsError("Unable to connect to actions service");
-        setIsLoadingTicket(false);
-        setIsLoadingDevice(false);
-        setIsLoadingKnowledge(false);
-        setIsLoadingActions(false);
-      }
-    };
-
-    fetchAllData();
-  }, [initialTicket.id]);
-
-  /**
-   * Format storage bytes to GB
-   *
-   * @param bytes - Storage size in bytes
-   * @returns Formatted string with GB units (e.g., "512.00 GB")
-   */
   const formatStorage = (bytes?: number): string => {
     if (!bytes) return "N/A";
     const gb = bytes / (1024 * 1024 * 1024);
     return `${gb.toFixed(2)} GB`;
   };
 
-  /**
-   * Format ISO date string to locale date string
-   *
-   * @param dateString - ISO 8601 date string
-   * @returns Localized date/time string
-   */
   const formatDate = (dateString?: string): string => {
     if (!dateString) return "N/A";
     try {
@@ -342,17 +249,6 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
     }
   };
 
-  /**
-   * Convert ISO date to relative time string
-   *
-   * Calculates time difference and returns human-readable format:
-   * - "X minutes ago" (< 60 minutes)
-   * - "X hours ago" (< 24 hours)
-   * - "X days ago" (≥ 24 hours)
-   *
-   * @param dateString - ISO 8601 date string
-   * @returns Relative time string or "N/A"
-   */
   const getRelativeTime = (dateString?: string): string => {
     if (!dateString) return "N/A";
     try {
@@ -376,7 +272,6 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   return (
     <div className="flex flex-col gap-4 md:gap-6 p-3 sm:p-4 md:p-6 w-full h-full overflow-y-auto items-center">
       <div className="w-full max-w-[1400px]">
-        {/* Mobile back button */}
         <button
           onClick={() => navigate("/home")}
           className="md:hidden flex items-center gap-2 text-[#155cfb] hover:text-[#1347e5] transition-colors mb-4"
@@ -448,24 +343,11 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                 </p>
               </CardContent>
             </Card>
-            {showSustainabilityScore && (
-              <Card className="p-4 rounded-[10px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
-                <CardContent className="p-0 flex flex-col gap-2">
-                  <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
-                    Sustainability Score
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <Leaf className="w-5 h-5 text-[#00a63e] fill-[#00a63e]" />
-                    <Leaf className="w-5 h-5 text-[#00a63e] fill-[#00a63e]" />
-                    <Leaf className="w-5 h-5 text-[#00a63e] fill-[#00a63e]" />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
 
-        <div className="flex flex-col xl:flex-row gap-3 md:gap-4">
+        <div className="flex flex-col xl:flex-row gap-3 md:gap-4 mt-6">
+          {/* Ticket Details Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
               <div className="flex items-center gap-2">
@@ -474,7 +356,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                   Ticket Details
                 </h3>
               </div>
-              {isLoadingTicket ? (
+              {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
                 </div>
@@ -540,6 +422,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
             </CardContent>
           </Card>
 
+          {/* Device Details Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
               <div className="flex items-center gap-2">
@@ -548,16 +431,9 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                   Device Details
                 </h3>
               </div>
-              {isLoadingDevice ? (
+              {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
-                </div>
-              ) : deviceError ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
-                  <AlertCircle className="w-10 h-10 text-[#61738d] opacity-50" />
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
-                    {deviceError}
-                  </span>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-2">
@@ -568,7 +444,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Device Name
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.deviceName || ticket.device || "N/A"}
+                        {stubbedDeviceDetails.deviceName}
                       </span>
                     </div>
                   </div>
@@ -579,7 +455,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Manufacturer
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.manufacturer || "N/A"}
+                        {stubbedDeviceDetails.manufacturer}
                       </span>
                     </div>
                   </div>
@@ -590,7 +466,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Model
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.model || "N/A"}
+                        {stubbedDeviceDetails.model}
                       </span>
                     </div>
                   </div>
@@ -601,7 +477,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Serial Number
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.serialNumber || "N/A"}
+                        {stubbedDeviceDetails.serialNumber}
                       </span>
                     </div>
                   </div>
@@ -612,7 +488,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Operating System
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.operatingSystem || "N/A"}
+                        {stubbedDeviceDetails.operatingSystem}
                       </span>
                     </div>
                   </div>
@@ -623,7 +499,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         OS Version
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.osVersion || "N/A"}
+                        {stubbedDeviceDetails.osVersion}
                       </span>
                     </div>
                   </div>
@@ -634,11 +510,9 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Total Storage
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.totalStorageSpaceInBytes
-                          ? formatStorage(
-                              deviceDetails.totalStorageSpaceInBytes
-                            )
-                          : "N/A"}
+                        {formatStorage(
+                          stubbedDeviceDetails.totalStorageSpaceInBytes
+                        )}
                       </span>
                     </div>
                   </div>
@@ -649,9 +523,9 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Free Storage
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.freeStorageSpaceInBytes
-                          ? formatStorage(deviceDetails.freeStorageSpaceInBytes)
-                          : "N/A"}
+                        {formatStorage(
+                          stubbedDeviceDetails.freeStorageSpaceInBytes
+                        )}
                       </span>
                     </div>
                   </div>
@@ -662,9 +536,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Enrolled Date
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.enrolledDateTime
-                          ? formatDate(deviceDetails.enrolledDateTime)
-                          : "N/A"}
+                        {formatDate(stubbedDeviceDetails.enrolledDateTime)}
                       </span>
                     </div>
                   </div>
@@ -675,9 +547,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                         Last Sync
                       </span>
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 break-words">
-                        {deviceDetails?.lastSyncDateTime
-                          ? getRelativeTime(deviceDetails.lastSyncDateTime)
-                          : "N/A"}
+                        {getRelativeTime(stubbedDeviceDetails.lastSyncDateTime)}
                       </span>
                     </div>
                   </div>
@@ -687,20 +557,8 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                       <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4">
                         Health Status
                       </span>
-                      <span
-                        className={`[font-family:'Arial-Regular',Helvetica] font-normal text-sm leading-5 break-words ${
-                          deviceDetails?.complianceState === "compliant"
-                            ? "text-[#00a63e]"
-                            : deviceDetails?.complianceState === "noncompliant"
-                            ? "text-[#d32f2f]"
-                            : "text-[#f59e0b]"
-                        }`}
-                      >
-                        {deviceDetails?.complianceState === "compliant"
-                          ? "Compliant"
-                          : deviceDetails?.complianceState === "noncompliant"
-                          ? "Non-Compliant"
-                          : deviceDetails?.complianceState || "Unknown"}
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm leading-5 break-words text-[#00a63e]">
+                        Compliant
                       </span>
                     </div>
                   </div>
@@ -709,6 +567,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
             </CardContent>
           </Card>
 
+          {/* Knowledge Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
               <div className="flex items-center gap-2">
@@ -717,26 +576,13 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                   Knowledge
                 </h3>
               </div>
-              {isLoadingKnowledge ? (
+              {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
                 </div>
-              ) : knowledgeError ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4">
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#d32f2f] text-sm text-center">
-                    {knowledgeError}
-                  </span>
-                </div>
-              ) : knowledgeArticles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
-                  <BookOpen className="w-10 h-10 text-[#61738d] opacity-50" />
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
-                    No knowledge articles found for this incident
-                  </span>
-                </div>
               ) : (
                 <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-2">
-                  {knowledgeArticles.map((article, index) => (
+                  {stubbedKnowledgeArticles.map((article) => (
                     <div
                       key={article.sysId}
                       className="flex flex-col gap-2 pb-4 border-b-[0.67px] border-[#e1e8f0] last:border-0 last:pb-0"
@@ -746,7 +592,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                           {article.title}
                         </p>
                         <Badge className="h-auto px-2 py-0.5 rounded-lg text-xs bg-blue-100 text-[#1347e5] border-0 flex-shrink-0">
-                          {article.score.toFixed(0)}%
+                          {article.score}%
                         </Badge>
                       </div>
                       <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">
@@ -768,6 +614,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
             </CardContent>
           </Card>
 
+          {/* Actions Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
               <div className="flex items-center gap-2">
@@ -776,27 +623,13 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                   Actions
                 </h3>
               </div>
-              {isLoadingActions ? (
+              {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5876ab]"></div>
                 </div>
-              ) : actionsError ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
-                  <AlertCircle className="w-10 h-10 text-[#61738d] opacity-50" />
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
-                    {actionsError}
-                  </span>
-                </div>
-              ) : remoteActions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
-                  <ActivityIcon className="w-10 h-10 text-[#61738d] opacity-50" />
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
-                    No recommended actions available for this incident
-                  </span>
-                </div>
               ) : (
                 <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-2">
-                  {remoteActions.map((action) => (
+                  {stubbedRemoteActions.map((action) => (
                     <div
                       key={action.actionId}
                       className="flex flex-col gap-3 p-4 bg-[#f8fafc] rounded-lg border-[0.67px] border-[#e1e8f0]"
@@ -846,4 +679,4 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   );
 };
 
-export default TicketDetailsView;
+export default StubbedTicketDetailsView;

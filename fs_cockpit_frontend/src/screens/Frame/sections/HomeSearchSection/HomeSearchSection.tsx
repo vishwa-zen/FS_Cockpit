@@ -6,6 +6,8 @@ import {
   AlertCircle,
   ArrowLeft,
   ServerCrash,
+  SendIcon,
+  Leaf,
 } from "lucide-react";
 import TicketsList from "../shared/TicketsList";
 import TicketDetailsView from "../shared/TicketDetailsView";
@@ -68,6 +70,23 @@ export const HomeSearchSection = (): JSX.Element => {
     "Ticket"
   );
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [copilotMessage, setCopilotMessage] = useState("");
+  const [copilotMessages, setCopilotMessages] = useState<
+    Array<{
+      role: "user" | "assistant";
+      content: string | JSX.Element;
+      ticketId?: string;
+    }>
+  >([
+    {
+      role: "assistant",
+      content:
+        "👋 Welcome to FS Cockpit! I'm here to help you with diagnostics. How can I assist you today?",
+    },
+  ]);
+  const [copilotSelectedTicketId, setCopilotSelectedTicketId] = useState<
+    string | null
+  >(null);
 
   // Update selected ticket when URL parameter changes
   useEffect(() => {
@@ -93,6 +112,279 @@ export const HomeSearchSection = (): JSX.Element => {
   const handleTicketClick = (ticketId: string) => {
     // Navigate to /home/:id to show ticket details on the right side
     navigate(`/home/${ticketId}`);
+  };
+
+  const handleCopilotTicketClick = (ticketId: string) => {
+    setCopilotSelectedTicketId(ticketId);
+    setCopilotMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `Great! I've loaded the details for **${ticketId}**. You can see the full diagnostics on the right side. How can I help you with this ticket?`,
+      },
+    ]);
+  };
+
+  const handleCopilotSend = () => {
+    if (copilotMessage.trim()) {
+      const userMessage = copilotMessage.trim().toLowerCase();
+      const originalMessage = copilotMessage.trim();
+
+      // Add user message
+      setCopilotMessages((prev) => [
+        ...prev,
+        { role: "user", content: copilotMessage },
+      ]);
+      setCopilotMessage("");
+
+      // Check if user is asking for tickets
+      if (
+        userMessage.includes("my tickets") ||
+        userMessage.includes("show tickets") ||
+        userMessage.includes("get my tickets") ||
+        userMessage.includes("tickets")
+      ) {
+        setTimeout(() => {
+          setCopilotMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-[#070f26]">
+                      Here are your tickets. Click on any ticket to view
+                      details:
+                    </p>
+                    <div className="flex items-center gap-0.5">
+                      <Leaf className="w-3.5 h-3.5 text-[#00a63e] fill-[#00a63e]" />
+                      <Leaf className="w-3.5 h-3.5 text-[#00a63e] fill-[#00a63e]" />
+                      <Leaf className="w-3.5 h-3.5 text-[#00a63e] fill-[#00a63e]" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {myTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        onClick={() => handleCopilotTicketClick(ticket.id)}
+                        className="p-3 bg-white border border-[#e1e8f0] rounded-lg hover:bg-[#f8fafc] cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <span className="font-medium text-sm text-[#155cfb]">
+                            {ticket.id}
+                          </span>
+                          <div className="flex gap-1.5">
+                            {ticket.priorityColor && ticket.priority && (
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs ${ticket.priorityColor}`}
+                              >
+                                {ticket.priority}
+                              </span>
+                            )}
+                            {ticket.statusColor && ticket.status && (
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs ${ticket.statusColor}`}
+                              >
+                                {ticket.status}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#5876ab] line-clamp-2">
+                          {ticket.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-[#90a1b8]">
+                          {ticket.device && (
+                            <span className="flex items-center gap-1">
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <rect
+                                  x="2"
+                                  y="3"
+                                  width="20"
+                                  height="14"
+                                  rx="2"
+                                  strokeWidth="2"
+                                />
+                                <line
+                                  x1="8"
+                                  y1="21"
+                                  x2="16"
+                                  y2="21"
+                                  strokeWidth="2"
+                                />
+                                <line
+                                  x1="12"
+                                  y1="17"
+                                  x2="12"
+                                  y2="21"
+                                  strokeWidth="2"
+                                />
+                              </svg>
+                              {ticket.device}
+                            </span>
+                          )}
+                          {ticket.time && <span>• {ticket.time}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ),
+            },
+          ]);
+        }, 500);
+      }
+      // Check if user wants to search by device
+      else if (
+        userMessage.includes("search device") ||
+        userMessage.includes("find device") ||
+        userMessage.includes("device:")
+      ) {
+        const deviceMatch =
+          originalMessage.match(/device[:\s]+(\S+)/i) ||
+          originalMessage.match(/(?:search|find)\s+device\s+(\S+)/i);
+        if (deviceMatch && deviceMatch[1]) {
+          const deviceName = deviceMatch[1];
+          setCopilotMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `🔍 Searching for tickets related to device **${deviceName}**...`,
+            },
+          ]);
+
+          searchTickets(deviceName, "Device").then(() => {
+            setTimeout(() => {
+              setCopilotMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content:
+                    searchResults.length > 0
+                      ? `Found ${searchResults.length} ticket(s) for device **${deviceName}**. Check the results on the left.`
+                      : `No tickets found for device **${deviceName}**. Try a different device name.`,
+                },
+              ]);
+            }, 800);
+          });
+        } else {
+          setTimeout(() => {
+            setCopilotMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content:
+                  "Please specify a device name. For example: 'search device LAPTOP-123' or 'device: LAPTOP-123'",
+              },
+            ]);
+          }, 500);
+        }
+      }
+      // Check if user wants to search by username
+      else if (
+        userMessage.includes("search user") ||
+        userMessage.includes("find user") ||
+        userMessage.includes("user:") ||
+        userMessage.includes("username:")
+      ) {
+        const userMatch =
+          originalMessage.match(/(?:user|username)[:\s]+(\S+)/i) ||
+          originalMessage.match(/(?:search|find)\s+user\s+(\S+)/i);
+        if (userMatch && userMatch[1]) {
+          const userName = userMatch[1];
+          setCopilotMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `🔍 Searching for tickets assigned to user **${userName}**...`,
+            },
+          ]);
+
+          searchTickets(userName, "User").then(() => {
+            setTimeout(() => {
+              setCopilotMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content:
+                    searchResults.length > 0
+                      ? `Found ${searchResults.length} ticket(s) for user **${userName}**. Check the results on the left.`
+                      : `No tickets found for user **${userName}**. Try a different username.`,
+                },
+              ]);
+            }, 800);
+          });
+        } else {
+          setTimeout(() => {
+            setCopilotMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content:
+                  "Please specify a username. For example: 'search user john.doe' or 'user: john.doe'",
+              },
+            ]);
+          }, 500);
+        }
+      }
+      // Check if user typed a ticket number (search by incident)
+      else if (userMessage.match(/inc\d{7}/i)) {
+        const ticketMatch = userMessage.match(/inc\d{7}/i);
+        if (ticketMatch) {
+          const ticketId = ticketMatch[0].toUpperCase();
+          setCopilotMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `🔍 Searching for ticket **${ticketId}**...`,
+            },
+          ]);
+
+          searchTickets(ticketId, "Ticket").then(() => {
+            setTimeout(() => {
+              const ticket =
+                searchResults.find((t) => t.id === ticketId) ||
+                myTickets.find((t) => t.id === ticketId);
+              if (ticket) {
+                handleCopilotTicketClick(ticketId);
+              } else {
+                setCopilotMessages((prev) => [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: `I couldn't find ticket **${ticketId}**. Please verify the ticket number and try again.`,
+                  },
+                ]);
+              }
+            }, 800);
+          });
+        }
+      }
+      // General response
+      else {
+        setTimeout(() => {
+          const responses = [
+            "I can help you search for tickets! Try:\n• Type a ticket number (e.g., INC0012345)\n• Search by device: 'search device LAPTOP-123'\n• Search by user: 'search user john.doe'\n• Or ask to 'show my tickets'",
+            "I'm here to assist with IT diagnostics. You can:\n• Type 'show my tickets' to see your assigned tickets\n• Enter a ticket number like INC0012345\n• Search by device or username",
+            "How can I help you today? You can:\n• Ask to see your tickets\n• Search by incident number (INC0012345)\n• Search by device name\n• Search by username",
+          ];
+          const randomResponse =
+            responses[Math.floor(Math.random() * responses.length)];
+          setCopilotMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: randomResponse,
+            },
+          ]);
+        }, 500);
+      }
+    }
   };
 
   return (
@@ -324,92 +616,198 @@ export const HomeSearchSection = (): JSX.Element => {
               value="copilot"
               className="mt-0 p-0 flex-1 overflow-y-auto"
             >
-              <div className="h-full flex flex-col items-center justify-center gap-6 p-8">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                    <CopilotIcon />
-                  </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <h3 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-lg leading-6">
-                      AI Copilot
-                    </h3>
-                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[320px]">
-                      Your intelligent assistant for diagnostics and
-                      troubleshooting
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#1347e5] text-sm">
-                    Coming Soon
-                  </span>
+              <div className="h-full flex flex-col">
+                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+                  {copilotMessages.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`flex gap-3 ${
+                        message.role === "user"
+                          ? "justify-end"
+                          : "justify-start"
+                      }`}
+                    >
+                      {message.role === "assistant" && (
+                        <div className="w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                          <svg
+                            width="32"
+                            height="32"
+                            viewBox="0 0 32 32"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M0 10C0 4.47715 4.47715 0 10 0H22C27.5228 0 32 4.47715 32 10V22C32 27.5228 27.5228 32 22 32H10C4.47715 32 0 27.5228 0 22V10Z"
+                              fill="url(#paint0_linear_1_1382)"
+                            />
+                            <g clipPath="url(#clip0_1_1382)">
+                              <path
+                                d="M15.3447 9.87605C15.3732 9.72312 15.4544 9.58499 15.5741 9.4856C15.6937 9.3862 15.8444 9.33179 16 9.33179C16.1556 9.33179 16.3062 9.3862 16.4259 9.4856C16.5456 9.58499 16.6268 9.72312 16.6553 9.87605L17.356 13.5814C17.4058 13.8448 17.5338 14.0871 17.7233 14.2767C17.9129 14.4663 18.1552 14.5943 18.4187 14.6441L22.124 15.3447C22.2769 15.3733 22.415 15.4544 22.5144 15.5741C22.6138 15.6938 22.6683 15.8445 22.6683 16.0001C22.6683 16.1556 22.6138 16.3063 22.5144 16.426C22.415 16.5457 22.2769 16.6268 22.124 16.6554L18.4187 17.3561C18.1552 17.4058 17.9129 17.5338 17.7233 17.7234C17.5338 17.913 17.4058 18.1553 17.356 18.4187L16.6553 22.1241C16.6268 22.277 16.5456 22.4151 16.4259 22.5145C16.3062 22.6139 16.1556 22.6683 16 22.6683C15.8444 22.6683 15.6937 22.6139 15.5741 22.5145C15.4544 22.4151 15.3732 22.277 15.3447 22.1241L14.644 18.4187C14.5942 18.1553 14.4662 17.913 14.2766 17.7234C14.0871 17.5338 13.8448 17.4058 13.5813 17.3561L9.87599 16.6554C9.72306 16.6268 9.58493 16.5457 9.48553 16.426C9.38614 16.3063 9.33173 16.1556 9.33173 16.0001C9.33173 15.8445 9.38614 15.6938 9.48553 15.5741C9.58493 15.4544 9.72306 15.3733 9.87599 15.3447L13.5813 14.6441C13.8448 14.5943 14.0871 14.4663 14.2766 14.2767C14.4662 14.0871 14.5942 13.8448 14.644 13.5814L15.3447 9.87605Z"
+                                stroke="white"
+                                strokeWidth="1.33333"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M21.3333 9.33325V11.9999"
+                                stroke="white"
+                                strokeWidth="1.33333"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M22.6667 10.6667H20"
+                                stroke="white"
+                                strokeWidth="1.33333"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M10.6666 22.6667C11.403 22.6667 12 22.0697 12 21.3333C12 20.597 11.403 20 10.6666 20C9.93027 20 9.33331 20.597 9.33331 21.3333C9.33331 22.0697 9.93027 22.6667 10.6666 22.6667Z"
+                                stroke="white"
+                                strokeWidth="1.33333"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </g>
+                            <defs>
+                              <linearGradient
+                                id="paint0_linear_1_1382"
+                                x1="0"
+                                y1="0"
+                                x2="32"
+                                y2="32"
+                                gradientUnits="userSpaceOnUse"
+                              >
+                                <stop stopColor="#AD46FF" />
+                                <stop offset="1" stopColor="#F6339A" />
+                              </linearGradient>
+                              <clipPath id="clip0_1_1382">
+                                <rect
+                                  width="16"
+                                  height="16"
+                                  fill="white"
+                                  transform="translate(8 8)"
+                                />
+                              </clipPath>
+                            </defs>
+                          </svg>
+                        </div>
+                      )}
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                          message.role === "user"
+                            ? "bg-[#155cfb] text-white"
+                            : "bg-white border border-[#e1e8f0] text-[#070f26]"
+                        }`}
+                      >
+                        {typeof message.content === "string" ? (
+                          <p className="text-sm leading-6 whitespace-pre-wrap">
+                            {message.content}
+                          </p>
+                        ) : (
+                          message.content
+                        )}
+                      </div>
+                      {message.role === "user" && (
+                        <Avatar className="w-8 h-8 flex-shrink-0">
+                          <AvatarFallback className="bg-[#155cfb] text-white text-xs">
+                            {user?.name?.charAt(0).toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </TabsContent>
           </Tabs>
 
           <div className="flex-shrink-0 pt-3 px-3 pb-3 md:pt-4 md:px-4 md:pb-4 bg-white border-t-[0.67px] border-[#e1e8f0]">
-            <div className="flex items-center gap-2 md:gap-3 w-full">
-              <div className="flex-1 flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border-[0.67px] border-[#e1e8f0] shadow-[0px_1px_2px_-1px_#0000001a,0px_1px_3px_#0000001a]">
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  placeholder={`Enter ${searchType.toLowerCase()} name or number...`}
-                  className="border-0 shadow-none p-0 h-auto [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-xs placeholder:text-[#717182] focus-visible:ring-0"
-                />
-                <div className="relative">
-                  <Button
-                    onClick={() => {
-                      setShowSearchDropdown(!showSearchDropdown);
-                    }}
-                    className="h-auto px-4 py-2 rounded-[10px] shadow-[0px_6px_18px_#1f6feb1f] bg-[linear-gradient(0deg,rgba(31,111,235,1)_0%,rgba(74,163,255,1)_100%)] hover:opacity-90 transition-opacity"
-                  >
-                    <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[13.3px] leading-normal">
-                      {searchType}
-                    </span>
-                    <ChevronDownIcon className="w-4 h-4 ml-2" />
-                  </Button>
-
-                  {showSearchDropdown && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowSearchDropdown(false)}
-                      />
-                      <div className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
-                        {(["User", "Device", "Ticket"] as const).map((type) => (
-                          <button
-                            key={type}
-                            onClick={() => {
-                              setSearchType(type);
-                              setShowSearchDropdown(false);
-                            }}
-                            className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
-                              searchType === type
-                                ? "bg-blue-50 text-[#1347e5]"
-                                : ""
-                            }`}
-                          >
-                            <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm">
-                              {type}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+            {activeTab === "copilot" ? (
+              <div className="flex items-center gap-2 md:gap-3 w-full">
+                <div className="flex-1 flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border-[0.67px] border-[#e1e8f0] shadow-[0px_1px_2px_-1px_#0000001a,0px_1px_3px_#0000001a]">
+                  <Input
+                    value={copilotMessage}
+                    onChange={(e) => setCopilotMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCopilotSend()}
+                    placeholder="Type ticket number, device name, username, or ask for 'my tickets'..."
+                    className="border-0 shadow-none p-0 h-auto [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-xs placeholder:text-[#717182] focus-visible:ring-0"
+                  />
                 </div>
+                <Button
+                  size="icon"
+                  onClick={handleCopilotSend}
+                  disabled={!copilotMessage.trim()}
+                  className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <SendIcon className="w-5 h-5 text-white" />
+                </Button>
               </div>
-              <Button
-                size="icon"
-                onClick={handleSearch}
-                className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-colors shadow-lg"
-              >
-                <SearchIcon className="w-5 h-5 text-white" />
-              </Button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2 md:gap-3 w-full">
+                <div className="flex-1 flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border-[0.67px] border-[#e1e8f0] shadow-[0px_1px_2px_-1px_#0000001a,0px_1px_3px_#0000001a]">
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    placeholder={`Enter ${searchType.toLowerCase()} name or number...`}
+                    className="border-0 shadow-none p-0 h-auto [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-xs placeholder:text-[#717182] focus-visible:ring-0"
+                  />
+                  <div className="relative">
+                    <Button
+                      onClick={() => {
+                        setShowSearchDropdown(!showSearchDropdown);
+                      }}
+                      className="h-auto px-4 py-2 rounded-[10px] shadow-[0px_6px_18px_#1f6feb1f] bg-[linear-gradient(0deg,rgba(31,111,235,1)_0%,rgba(74,163,255,1)_100%)] hover:opacity-90 transition-opacity"
+                    >
+                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[13.3px] leading-normal">
+                        {searchType}
+                      </span>
+                      <ChevronDownIcon className="w-4 h-4 ml-2" />
+                    </Button>
+
+                    {showSearchDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowSearchDropdown(false)}
+                        />
+                        <div className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
+                          {(["User", "Device", "Ticket"] as const).map(
+                            (type) => (
+                              <button
+                                key={type}
+                                onClick={() => {
+                                  setSearchType(type);
+                                  setShowSearchDropdown(false);
+                                }}
+                                className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
+                                  searchType === type
+                                    ? "bg-blue-50 text-[#1347e5]"
+                                    : ""
+                                }`}
+                              >
+                                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm">
+                                  {type}
+                                </span>
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="icon"
+                  onClick={handleSearch}
+                  className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-colors shadow-lg"
+                >
+                  <SearchIcon className="w-5 h-5 text-white" />
+                </Button>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -419,25 +817,49 @@ export const HomeSearchSection = (): JSX.Element => {
           } flex-1 bg-slate-50 min-h-[552px] overflow-hidden`}
         >
           {activeTab === "copilot" ? (
-            <div className="flex flex-col items-center justify-center h-full gap-8 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:800ms]">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                <CopilotIcon />
+            copilotSelectedTicketId ? (
+              (() => {
+                const selectedTicket = myTickets.find(
+                  (t) => t.id === copilotSelectedTicketId
+                );
+                return selectedTicket ? (
+                  <TicketDetailsView
+                    ticket={selectedTicket}
+                    showSustainabilityScore={true}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <div className="flex flex-col items-center justify-center gap-8 translate-y-[-1rem]">
+                      <CockpitEmptyStateIcon />
+                      <div className="flex flex-col items-center gap-2">
+                        <h2 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-base text-center leading-6">
+                          Copilot
+                        </h2>
+                        <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[448px]">
+                          Ask me to show your tickets or provide a ticket number
+                          for diagnostics.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="flex items-center justify-center w-full h-full">
+                <div className="flex flex-col items-center justify-center gap-8 translate-y-[-1rem]">
+                  <CockpitEmptyStateIcon />
+                  <div className="flex flex-col items-center gap-2">
+                    <h2 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-base text-center leading-6">
+                      Copilot
+                    </h2>
+                    <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[448px]">
+                      Ask me to show your tickets or provide a ticket number for
+                      diagnostics.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <h2 className="[font-family:'Arial-Bold',Helvetica] font-bold text-[#314157] text-lg text-center leading-6">
-                  AI Copilot
-                </h2>
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center leading-5 max-w-[448px]">
-                  Your intelligent assistant for diagnostics and troubleshooting
-                </p>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#1347e5] text-sm">
-                  Coming Soon
-                </span>
-              </div>
-            </div>
+            )
           ) : selectedTicketId ? (
             (() => {
               // Check both myTickets and searchResults for the selected ticket
