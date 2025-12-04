@@ -636,38 +636,88 @@ export interface KnowledgeData {
   query: string;
 }
 
+// Solution Summary API types
+export interface SolutionSummaryData {
+  incident_number: string;
+  summary_points: string[];
+  source: string;
+  kb_articles_count: number;
+  total_kb_articles_used: number;
+  confidence: string;
+  message: string;
+}
+
 export const knowledgeAPI = {
-  getKnowledgeArticles: async (incidentNumber: string, limit: number = 3) => {
+  // Original API - commented out
+  // getKnowledgeArticles: async (incidentNumber: string, limit: number = 3) => {
+  //   try {
+  //     const response = await apiClient.get<ApiResponse<KnowledgeData>>(
+  //       `/servicenow/incident/${encodeURIComponent(
+  //         incidentNumber
+  //       )}/knowledge?limit=${limit}`
+  //     );
+  //     if (response.data.success) {
+  //       return {
+  //         data: response.data.data.articles,
+  //         success: true,
+  //         message: response.data.message,
+  //       };
+  //     }
+  //     throw new Error(
+  //       response.data.message || "Knowledge articles not available"
+  //     );
+  //   } catch (error: any) {
+  //     logger.error("Failed to fetch knowledge articles", error);
+
+  //     let errorMessage = "Unable to retrieve knowledge articles";
+  //     if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+  //       errorMessage = "Request timeout - please try again";
+  //     } else if (error.code === "ERR_NETWORK" || !error.response) {
+  //       errorMessage = "Knowledge base temporarily unavailable";
+  //     } else if (error.response?.status === 404) {
+  //       errorMessage = "No relevant articles found";
+  //     }
+
+  //     return {
+  //       data: [],
+  //       success: false,
+  //       message: errorMessage,
+  //     };
+  //   }
+  // },
+
+  // New Solution Summary API
+  getSolutionSummary: async (incidentNumber: string, limit: number = 3) => {
     try {
-      const response = await apiClient.get<ApiResponse<KnowledgeData>>(
+      const response = await apiClient.get<ApiResponse<SolutionSummaryData>>(
         `/servicenow/incident/${encodeURIComponent(
           incidentNumber
-        )}/knowledge?limit=${limit}`
+        )}/solution_summary?limit=${limit}`
       );
       if (response.data.success) {
         return {
-          data: response.data.data.articles,
+          data: response.data.data,
           success: true,
           message: response.data.message,
         };
       }
       throw new Error(
-        response.data.message || "Knowledge articles not available"
+        response.data.message || "Solution summary not available"
       );
     } catch (error: any) {
-      logger.error("Failed to fetch knowledge articles", error);
+      logger.error("Failed to fetch solution summary", error);
 
-      let errorMessage = "Unable to retrieve knowledge articles";
+      let errorMessage = "Unable to retrieve solution summary";
       if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
         errorMessage = "Request timeout - please try again";
       } else if (error.code === "ERR_NETWORK" || !error.response) {
-        errorMessage = "Knowledge base temporarily unavailable";
+        errorMessage = "Solution service temporarily unavailable";
       } else if (error.response?.status === 404) {
-        errorMessage = "No relevant articles found";
+        errorMessage = "No solution summary found";
       }
 
       return {
-        data: [],
+        data: null,
         success: false,
         message: errorMessage,
       };

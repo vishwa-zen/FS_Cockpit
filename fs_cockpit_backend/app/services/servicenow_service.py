@@ -630,5 +630,321 @@ class ServiceNowService:
         
         return articles
 
+    async def get_kb_article_content(self, article_sys_id: str, article_number: str = "") -> str:
+        """
+        Fetch the full content/body of a KB article from ServiceNow.
+
+        Args:
+            article_sys_id (str): The sys_id of the KB article
+            article_number (str): The article number (KB number) as fallback
+
+        Returns:
+            str: The full article content/body text
+        """
+        logger.debug("Fetching KB article content", article_sys_id=article_sys_id, article_number=article_number)
+        
+        try:
+            async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
+                endpoint = "/api/sn_km_api/knowledge/articles"
+                
+                # Try fetching with sys_id first
+                if article_sys_id:
+                    params = {
+                        "filter": f"sys_id={article_sys_id}",
+                        "fields": "text,body,content,short_description,number"
+                    }
+                else:
+                    params = {
+                        "filter": f"number={article_number}",
+                        "fields": "text,body,content,short_description,number"
+                    }
+                
+                response = await client.get(endpoint, params=params)
+                
+                result = response.get("result", {})
+                articles_data = result.get("articles", []) if isinstance(result, dict) else []
+                
+                if articles_data and len(articles_data) > 0:
+                    article = articles_data[0]
+                    # Try different field names for content
+                    content = article.get("text") or article.get("body") or article.get("content") or article.get("short_description") or ""
+                    if content:
+                        logger.debug("Successfully fetched KB article content", article_sys_id=article_sys_id, content_length=len(str(content)))
+                        return str(content)
+                
+                logger.debug("No content found for KB article", article_sys_id=article_sys_id)
+                return ""
+        except (KeyError, ValueError, TypeError) as e:
+            logger.warning("Error fetching KB article content", article_sys_id=article_sys_id, error=str(e))
+            # Fallback: return just the article number if we can't get full content
+            if article_number:
+                return f"Reference Article: {article_number}"
+            return ""
+
+    def _extract_summary_points_from_content(self, content: str, min_points: int = 5) -> List[str]:
+        """
+        Extract summary points from KB article content by parsing sentences and formatting.
+
+        Args:
+            content (str): The KB article content/body text
+            min_points (int): Minimum number of points to extract (default: 5)
+
+        Returns:
+            List[str]: List of extracted summary points
+        """
+        if not content or not content.strip():
+            return []
+        
+        import re
+        content = re.sub(r'<[^>]+>', '', content)
+        
+        points = []
+        
+        numbered_pattern = r'^\\s*(?:\\d+\\.|Step\\s+\\d+:|•|\\-|\\*|→)\\s*(.+?)(?=\\n|$)'
+        numbered_matches = re.findall(numbered_pattern, content, re.MULTILINE | re.IGNORECASE)
+        if numbered_matches:
+            points.extend([m.strip() for m in numbered_matches if m.strip()])
+        
+        if len(points) >= min_points:
+            return points[:min_points]
+        
+        sentences = re.split(r'[.!?]\\s+', content)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) > 20 and len(sentence) < 300:
+                points.append(sentence + ".")
+            if len(points) >= min_points:
+                break
+        
+        return points if points else [content[:200] + "..."]
+
+    async def get_solution_summary_for_incident(self, incident_number: str, limit: int = 3) -> dict:
+        """
+        Get a summary of solution points from KB articles for a specific incident.
+        Fetches full KB article content and extracts meaningful summary points.
+        Falls back to AI-generated suggestions if no KB articles are found or on errors.
+        Results are cached for 15 minutes to improve performance.
+
+        Args:
+            incident_number (str): The incident number (e.g., "INC0010001")
+            limit (int): Maximum number of KB articles to use (default: 3)
+
+        Returns:
+            dict: Contains summary_points (5-6 points), source ('kb_articles' or 'ai_generated'), and metadata
+        """
+        logger.info("Getting solution summary for incident", incident_number=incident_number, limit=limit)
+        
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:solution_summary:{incident_number}:{limit}"
+            cached_result = self.cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug("Cache hit for solution summary", incident_number=incident_number)
+                return cached_result
+        
+        try:
+            articles = await self.search_knowledge_articles_for_incident(incident_number, limit)
+            
+            if articles and len(articles) > 0:
+                summary_points = []
+                articles_with_content = 0
+                
+                for article in articles:
+                    content = await self.get_kb_article_content(article.sysId, article.number)
+                    
+                    if content and len(content) > 20:
+                        extracted_points = self._extract_summary_points_from_content(content, min_points=5)
+                        if extracted_points:
+                            summary_points.extend(extracted_points)
+                            articles_with_content += 1
+                            logger.debug("Extracted points from article", article_number=article.number, points_count=len(extracted_points))
+                    else:
+                        if article.title and article.title not in summary_points:
+                            summary_points.append(article.title)
+                        if article.shortDescription and article.shortDescription not in summary_points:
+                            summary_points.append(article.shortDescription)
+                
+                if len(summary_points) >= 5:
+                    logger.info("Solution summary from KB articles", incident_number=incident_number, points_count=len(summary_points))
+                    result = {
+                        "incident_number": incident_number,
+                        "summary_points": summary_points[:10],
+                        "source": "kb_articles",
+                        "kb_articles_count": len(articles),
+                        "total_kb_articles_used": articles_with_content,
+                        "confidence": "high",
+                        "message": f"Solution summary extracted from {articles_with_content} relevant KB articles"
+                    }
+                    
+                    # Cache the result
+                    if self.cache:
+                        cache_ttl = getattr(self.settings, 'CACHE_TTL_KNOWLEDGE', 900)
+                        cache_key = f"sn:solution_summary:{incident_number}:{limit}"
+                        self.cache.set(cache_key, result, ttl_seconds=cache_ttl)
+                        logger.debug("Cached solution summary from KB articles", incident_number=incident_number)
+                    
+                    return result
+        except (KeyError, ValueError, TypeError) as e:
+            logger.warning("Error processing KB articles, using AI fallback", incident_number=incident_number, error=str(e))
+        
+        # Fallback: Generate AI-based summary points
+        logger.info("Using AI-generated fallback for solution summary", incident_number=incident_number)
+        
+        try:
+            incident = await self.fetch_incident_details(incident_number)
+            if not incident:
+                logger.warning("Incident not found for AI fallback", incident_number=incident_number)
+                return {
+                    "incident_number": incident_number,
+                    "summary_points": [],
+                    "source": "none",
+                    "kb_articles_count": 0,
+                    "total_kb_articles_used": 0,
+                    "confidence": "none",
+                    "message": f"Incident {incident_number} not found"
+                }
+            
+            search_query = incident.description or incident.shortDescription or ""
+            if not search_query:
+                logger.warning("Incident has no description for AI summary", incident_number=incident_number)
+                search_query = f"{incident_number} {incident.category or ''}"
+            
+            summary_points = self._generate_ai_solution_points(search_query, incident)
+            
+            logger.info("Solution summary from AI generation", incident_number=incident_number, points_count=len(summary_points))
+            
+            result = {
+                "incident_number": incident_number,
+                "summary_points": summary_points,
+                "source": "ai_generated",
+                "kb_articles_count": 0,
+                "total_kb_articles_used": 0,
+                "confidence": "medium",
+                "message": f"Solution points generated using AI analysis of: {search_query[:100]}..."
+            }
+            
+            # Cache the AI-generated result too
+            if self.cache:
+                cache_ttl = getattr(self.settings, 'CACHE_TTL_KNOWLEDGE', 900)
+                cache_key = f"sn:solution_summary:{incident_number}:{limit}"
+                self.cache.set(cache_key, result, ttl_seconds=cache_ttl)
+                logger.debug("Cached AI-generated solution summary", incident_number=incident_number)
+            
+            return result
+        except (KeyError, ValueError, TypeError) as e:
+            logger.error("Error generating AI solution points", incident_number=incident_number, error=str(e))
+            return {
+                "incident_number": incident_number,
+                "summary_points": [],
+                "source": "error",
+                "kb_articles_count": 0,
+                "total_kb_articles_used": 0,
+                "confidence": "none",
+                "message": f"Unable to generate solution summary for incident {incident_number}"
+            }
+
+    def _generate_ai_solution_points(self, query: str, incident) -> List[str]:
+        """
+        Generate intelligent AI-powered solution points based on incident details.
+        Analyzes keywords and provides 5-6 specific, actionable steps.
+
+        Args:
+            query (str): Search query (incident description)
+            incident: IncidentDTO object with category and other details
+
+        Returns:
+            List[str]: List of 5-6 suggested solution steps
+        """
+        points = []
+        query_lower = query.lower()
+        category = (incident.category or "").lower() if incident else ""
+        
+        if any(kw in query_lower or kw in category for kw in ["error", "failed", "crash", "broken", "exception"]):
+            points = [
+                "Review application error logs and event viewer for specific error codes and stack traces",
+                "Restart the affected application and verify the issue persists",
+                "Clear application cache, temporary files, and browser cache related to the service",
+                "Check if there are any pending software updates or patches available",
+                "Verify system resources (CPU, memory, disk) are not at critical levels",
+                "Check application compatibility with current OS version and installed drivers"
+            ]
+        
+        elif any(kw in query_lower or kw in category for kw in ["network", "connection", "internet", "wifi", "connectivity", "dns"]):
+            points = [
+                "Verify network connectivity: ping gateway and DNS servers to ensure connectivity",
+                "Check and reconfigure DNS settings, try alternate DNS servers (e.g., 8.8.8.8)",
+                "Restart network adapters and modem/router to refresh connection",
+                "Review firewall rules and proxy settings that may be blocking traffic",
+                "Check network adapter drivers are up to date and properly configured",
+                "Test connectivity using different network interfaces or alternate networks"
+            ]
+        
+        elif any(kw in query_lower or kw in category for kw in ["printer", "print", "printing", "document"]):
+            points = [
+                "Verify the printer is powered on, connected to network, and showing as ready",
+                "Clear print queue and restart print spooler service on the computer",
+                "Reinstall or update printer drivers from manufacturer's website",
+                "Check printer permissions and sharing settings in network configuration",
+                "Test printing from different applications and document formats",
+                "Review printer error logs and clear any stuck print jobs from the queue"
+            ]
+        
+        elif any(kw in query_lower or kw in category for kw in ["password", "authentication", "login", "access", "permission", "denied"]):
+            points = [
+                "Verify credentials are correct and account is not locked or expired",
+                "Check if user account is enabled and has not been disabled",
+                "Reset password through official IT channels and verify password policy compliance",
+                "Verify user is member of required security groups and has necessary permissions",
+                "Check Multi-Factor Authentication (MFA) settings and alternative authentication methods",
+                "Review account lockout policies and recent failed login attempts"
+            ]
+        
+        elif any(kw in query_lower or kw in category for kw in ["performance", "slow", "freeze", "hang", "lag", "timeout"]):
+            points = [
+                "Monitor CPU, memory, and disk usage to identify resource bottlenecks",
+                "Close unnecessary applications and browser tabs consuming system resources",
+                "Run disk cleanup utility and defragmentation to improve disk performance",
+                "Check Task Manager for processes consuming excessive resources and investigate",
+                "Scan for malware and potentially unwanted programs using antivirus software",
+                "Check for outdated drivers and system updates affecting performance"
+            ]
+        
+        elif any(kw in query_lower or kw in category for kw in ["software", "installation", "install", "update", "upgrade", "license"]):
+            points = [
+                "Verify software license is valid, activated, and not expired",
+                "Check system meets minimum requirements for software installation",
+                "Run installer with administrative privileges and disable antivirus temporarily if needed",
+                "Clear temporary files and previous installation remnants before reinstalling",
+                "Check software vendor's release notes for known issues and workarounds",
+                "Verify installation directories have proper read/write permissions"
+            ]
+        
+        elif any(kw in query_lower or kw in category for kw in ["email", "outlook", "gmail", "mail", "exchange"]):
+            points = [
+                "Verify email account credentials and check if mailbox is not full",
+                "Clear email cache and reconfigure email client connections",
+                "Check email server connectivity and IMAP/SMTP settings are correct",
+                "Verify firewall and antivirus are not blocking email client connections",
+                "Check email account security settings and app-specific password requirements",
+                "Test email synchronization and manually force a sync attempt"
+            ]
+        
+        if not points:
+            points = [
+                "Gather complete error message, logs, and steps to reproduce the issue",
+                "Perform basic troubleshooting: restart system, clear cache, log out and back in",
+                "Check for software updates, patches, and driver updates for affected components",
+                "Review system event logs and application logs for related errors or warnings",
+                "Test in Safe Mode or with minimal applications to isolate software conflicts",
+                "Document findings and prepare details for escalation if issue persists"
+            ]
+        
+        if len(points) < 5:
+            points.append("Consult vendor documentation and support resources for the affected software")
+        if len(points) < 6:
+            points.append(f"Search for solutions specific to: {query[:40]}")
+        
+        return points[:6]
+
     # Sorting and parsing helpers moved to `app.utils.incident_utils.IncidentUtils` for reuse
         

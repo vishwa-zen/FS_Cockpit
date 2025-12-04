@@ -19,6 +19,12 @@ import {
   KnowledgeIcon,
 } from "../../../../components/icons";
 import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "../../../../components/ui/tooltip";
+import {
   Tabs,
   TabsList,
   TabsTrigger,
@@ -36,6 +42,10 @@ import {
   SparklesIcon,
   SearchIcon,
   LayoutDashboardIcon,
+  Info,
+  Server,
+  LibraryBig,
+  Zap,
 } from "lucide-react";
 
 // Removed local ticketData; we now rely on context tickets
@@ -481,11 +491,32 @@ export const IssueDetailsSection = (): JSX.Element => {
               <div className="flex flex-col lg:flex-row gap-4">
                 <Card className="w-full lg:flex-[0_0_50%] p-4 md:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
                   <CardContent className="p-0 flex flex-col gap-6">
-                    <div className="flex items-center gap-2">
-                      <UserIcon className="w-5 h-5" />
-                      <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                        Ticket Details
-                      </h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="w-5 h-5 text-[#155cfb]" />
+                        <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                          Ticket Details
+                        </h3>
+                      </div>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              tabIndex={0}
+                              aria-label="Show data source"
+                              className="cursor-pointer"
+                            >
+                              <Info className="w-4 h-4 text-[#155cfb]" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                            <div className="flex items-center gap-2">
+                              <Server className="w-3.5 h-3.5 text-[#155cfb]" />
+                              <span className="text-[#070f26] text-xs font-semibold">ServiceNow</span>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <div className="flex flex-col gap-3">
                       <div className="flex gap-3 pb-3 border-b-[0.67px] border-[#e1e8f0]">
@@ -541,11 +572,32 @@ export const IssueDetailsSection = (): JSX.Element => {
 
                 <Card className="w-full lg:flex-[0_0_25%] p-4 md:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
                   <CardContent className="p-0 flex flex-col gap-6">
-                    <div className="flex items-center gap-2">
-                      <KnowledgeIcon />
-                      <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                        Knowledge
-                      </h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <KnowledgeIcon />
+                        <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                          Knowledge
+                        </h3>
+                      </div>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              tabIndex={0}
+                              aria-label="Show data source"
+                              className="cursor-pointer"
+                            >
+                              <Info className="w-4 h-4 text-[#155cfb]" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                            <div className="flex items-center gap-2">
+                              <LibraryBig className="w-3.5 h-3.5 text-[#155cfb]" />
+                              <span className="text-[#070f26] text-xs font-semibold">KnowledgeBase</span>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <div className="flex flex-col gap-4">
                       {rootCauseData.map((cause, index) => (
@@ -576,11 +628,32 @@ export const IssueDetailsSection = (): JSX.Element => {
 
                 <Card className="w-full lg:flex-[0_0_25%] p-4 md:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
                   <CardContent className="p-0 flex flex-col gap-6">
-                    <div className="flex items-center gap-2">
-                      <ActionsIcon />
-                      <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                        Actions
-                      </h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <ActionsIcon />
+                        <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                          Actions
+                        </h3>
+                      </div>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              tabIndex={0}
+                              aria-label="Show data source"
+                              className="cursor-pointer"
+                            >
+                              <Info className="w-4 h-4 text-[#155cfb]" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                            <div className="flex items-center gap-2">
+                              <Zap className="w-3.5 h-3.5 text-[#155cfb]" />
+                              <span className="text-[#070f26] text-xs font-semibold">NextThink</span>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <div className="flex flex-col gap-3">
                       {actionsData.map((action, index) => (

@@ -9,6 +9,7 @@ from app.middleware.request_id import get_request_id as _get_request_id
 from app.schemas.incident import IncidentDTO, IncidentListResponse
 from app.schemas.computer import ComputerListResponse
 from app.schemas.knowledge import KnowledgeSearchResponse
+from app.schemas.solution_summary import SolutionSummaryResponse
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -194,4 +195,57 @@ async def get_knowledge_for_incident(
     logger.info("Fetching KB articles for incident", incident_number=incident_number)
     articles = await service.search_knowledge_articles_for_incident(incident_number, limit)
     return {"articles": articles, "count": len(articles), "query": f"incident:{incident_number}"}
+
+
+@router.get(
+    "/incident/{incident_number}/solution_summary",
+    summary="Get Solution Summary for Incident",
+    response_model=SolutionSummaryResponse,
+)
+async def get_solution_summary_for_incident(
+    incident_number: str,
+    limit: int = 3,
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Get a summary of solution points needed to resolve a ticket.
+    
+    This endpoint searches for relevant KB articles based on the incident details.
+    If KB articles are found, it extracts and returns solution points from them.
+    If no KB articles are found, it generates generic solution suggestions based on
+    the incident category and description (simulating Google search fallback).
+
+    Args:
+        incident_number (str): The incident number (e.g., "INC0024934")
+        limit (int): Maximum number of KB articles to consider (default: 3)
+    
+    Returns:
+        SolutionSummaryResponse: 
+            - summary_points: List of actionable solution steps
+            - source: 'kb_articles' (from ServiceNow KB) or 'google_search' (generated fallback)
+            - confidence: 'high' for KB articles, 'medium' for generated suggestions
+            - message: Descriptive message about the source and number of articles used
+    
+    Example:
+        GET /api/v1/servicenow/incident/INC0024934/solution_summary?limit=3
+        
+        Response:
+        {
+            "incident_number": "INC0024934",
+            "summary_points": [
+                "Restart the affected system",
+                "Clear the application cache",
+                "Check system logs for errors"
+            ],
+            "source": "kb_articles",
+            "kb_articles_count": 2,
+            "total_kb_articles_used": 2,
+            "confidence": "high",
+            "message": "Solution summary extracted from 2 relevant KB articles"
+        }
+    """
+    logger.info("Fetching solution summary for incident", incident_number=incident_number, limit=limit)
+    result = await service.get_solution_summary_for_incident(incident_number, limit)
+    return result
+
 

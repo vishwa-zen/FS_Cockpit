@@ -35,7 +35,18 @@ import {
   ArrowLeft,
   WifiIcon,
   ActivityIcon,
+  Info,
+  Server,
+  Shield,
+  LibraryBig,
+  Zap,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "../../../../components/ui/tooltip";
 import {
   IntuneDevice,
   KnowledgeArticle,
@@ -350,11 +361,32 @@ export const StubbedTicketDetailsView: React.FC<
           {/* Ticket Details Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <UserIcon className="w-5 h-5" />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Ticket Details
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <UserIcon className="w-5 h-5 text-[#155cfb]" />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Ticket Details
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">ServiceNow</span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
@@ -425,11 +457,32 @@ export const StubbedTicketDetailsView: React.FC<
           {/* Device Details Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <MonitorIcon className="w-5 h-5 text-[#61738d]" />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Device Details
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <MonitorIcon className="w-5 h-5 text-[#155cfb]" />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Device Details
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">Intune</span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
@@ -570,11 +623,32 @@ export const StubbedTicketDetailsView: React.FC<
           {/* Knowledge Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <KnowledgeIcon />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Knowledge
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <KnowledgeIcon />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Knowledge
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <LibraryBig className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">KnowledgeBase</span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">
@@ -617,11 +691,32 @@ export const StubbedTicketDetailsView: React.FC<
           {/* Actions Card */}
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <ActionsIcon />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Actions
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ActionsIcon />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Actions
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">NextThink</span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingData ? (
                 <div className="flex items-center justify-center py-8">

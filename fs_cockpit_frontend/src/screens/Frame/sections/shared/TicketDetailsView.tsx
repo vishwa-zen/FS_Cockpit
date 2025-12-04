@@ -21,7 +21,6 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import { Progress } from "../../../../components/ui/progress";
 import {
   ActionsIcon,
   IncidentIcon,
@@ -50,15 +49,26 @@ import {
   AlertCircle,
   BookOpen,
   Leaf,
+  Info,
+  Server,
+  Shield,
+  LibraryBig,
+  Zap,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "../../../../components/ui/tooltip";
 import {
   deviceAPI,
   ticketsAPI,
   knowledgeAPI,
   remoteActionsAPI,
   IntuneDevice,
-  KnowledgeArticle,
   RemoteAction,
+  SolutionSummaryData,
 } from "../../../../services/api";
 
 /**
@@ -89,30 +99,6 @@ interface TicketDetailsViewProps {
   showSustainabilityScore?: boolean;
 }
 
-const rootCauseData = [
-  {
-    title: "Battery degradation affecting system performance",
-    confidence: "85%",
-    description:
-      "Battery health at 67%, charging limited to 60%, and thermal issues suggest battery degradation impacting overall system performance",
-    progress: 85,
-  },
-  {
-    title: "Thermal throttling due to dust buildup",
-    confidence: "78%",
-    description:
-      "User reports device getting hot. Combined with performance issues, suggests CPU throttling due to cooling system obstruction",
-    progress: 78,
-  },
-  {
-    title: "Memory leak in background processes",
-    confidence: "72%",
-    description:
-      "Slowness when running multiple applications indicates possible memory management issues",
-    progress: 72,
-  },
-];
-
 /**
  * Get status badge color based on action status
  *
@@ -141,9 +127,8 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [isLoadingTicket, setIsLoadingTicket] = useState(true);
-  const [knowledgeArticles, setKnowledgeArticles] = useState<
-    KnowledgeArticle[]
-  >([]);
+  const [solutionSummary, setSolutionSummary] =
+    useState<SolutionSummaryData | null>(null);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(true);
   const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
   const [remoteActions, setRemoteActions] = useState<RemoteAction[]>([]);
@@ -168,7 +153,13 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       try {
         const result = await ticketsAPI.getIncidentDetails(initialTicket.id);
         if (result.success && result.data) {
-          setTicket(result.data);
+          // Convert null values to undefined for type compatibility
+          const ticketData = {
+            ...result.data,
+            callerId: result.data.callerId ?? undefined,
+            callerName: result.data.callerName ?? undefined,
+          };
+          setTicket(ticketData);
         } else {
           setTicket(initialTicket);
         }
@@ -212,17 +203,17 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       }
     };
 
-    // Fetch knowledge articles
-    const fetchKnowledgeArticles = async () => {
+    // Fetch solution summary
+    const fetchSolutionSummary = async () => {
       setIsLoadingKnowledge(true);
       setKnowledgeError(null);
       try {
-        const result = await knowledgeAPI.getKnowledgeArticles(
+        const result = await knowledgeAPI.getSolutionSummary(
           initialTicket.id,
           3
         );
         if (result.success && result.data) {
-          setKnowledgeArticles(result.data);
+          setSolutionSummary(result.data);
         } else {
           const apiMessage = result.message;
           if (
@@ -231,11 +222,11 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
           ) {
             setKnowledgeError(apiMessage);
           } else {
-            setKnowledgeError("No relevant articles found");
+            setKnowledgeError("No solution summary found");
           }
         }
       } catch (error) {
-        setKnowledgeError("Knowledge base service is temporarily unavailable");
+        setKnowledgeError("Knowledge base articles temporarily unavailable");
       } finally {
         setIsLoadingKnowledge(false);
       }
@@ -275,7 +266,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
     // Execute all fetches independently (they run in parallel but update independently)
     fetchTicketDetails();
     fetchDeviceDetails();
-    fetchKnowledgeArticles();
+    fetchSolutionSummary();
     fetchRemoteActions();
   }, [initialTicket]);
 
@@ -440,11 +431,37 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
         <div className="flex flex-col xl:flex-row gap-3 md:gap-4">
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <UserIcon className="w-5 h-5" />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Ticket Details
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <UserIcon className="w-5 h-5 text-[#155cfb]" />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Ticket Details
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">
+                          ServiceNow
+                        </span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingTicket ? (
                 <div className="flex items-center justify-center py-8">
@@ -514,11 +531,37 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
 
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <MonitorIcon className="w-5 h-5 text-[#61738d]" />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Device Details
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <MonitorIcon className="w-5 h-5 text-[#155cfb]" />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Device Details
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">
+                          Intune
+                        </span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingDevice ? (
                 <div className="flex items-center justify-center py-8">
@@ -683,11 +726,39 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
 
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <KnowledgeIcon />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Knowledge
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <KnowledgeIcon />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Knowledge
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <LibraryBig className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">
+                          {solutionSummary?.source === "ai_generated"
+                            ? "Google"
+                            : "KnowledgeBase"}
+                        </span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingKnowledge ? (
                 <div className="flex items-center justify-center py-8">
@@ -699,45 +770,42 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                     {knowledgeError}
                   </span>
                 </div>
-              ) : knowledgeArticles.length === 0 ? (
+              ) : !solutionSummary ||
+                solutionSummary.summary_points.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 px-4 gap-3">
                   <BookOpen className="w-10 h-10 text-[#61738d] opacity-50" />
                   <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-sm text-center">
-                    No knowledge articles found for this incident
+                    No solution summary available for this incident
                   </span>
                 </div>
               ) : (
-                <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-2">
-                  {knowledgeArticles.map((article, index) => (
-                    <div
-                      key={article.sysId}
-                      className="flex flex-col gap-2 pb-4 border-b-[0.67px] border-[#e1e8f0] last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-sm leading-5 flex-1 break-words">
-                          {article.title}
-                        </p>
-                        <Badge className="h-auto px-2 py-0.5 rounded-lg text-xs bg-blue-100 text-[#1347e5] border-0 flex-shrink-0">
-                          {article.score !== undefined && article.score !== null
-                            ? article.score.toFixed(0)
-                            : "N/A"}
-                          %
-                        </Badge>
-                      </div>
-                      <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">
-                        {article.shortDescription}
-                      </p>
-                      <a
-                        href={article.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[#1347e5] hover:underline text-xs"
+                <div className="flex flex-col gap-4">
+                  {/* Solution Points List */}
+                  <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-2">
+                    {solutionSummary.summary_points.map((point, index) => (
+                      <div
+                        key={index}
+                        className="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-200/50 hover:border-[#1347e5]/30 transition-all duration-200 group"
                       >
-                        View Article
-                        <ChevronRightIcon className="w-3 h-3" />
-                      </a>
+                        <div className="flex-shrink-0 w-2 h-2 rounded-full bg-gradient-to-br from-[#1347e5] to-[#0e3aa8] mt-2"></div>
+                        <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-6 flex-1">
+                          {point}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Footer Info */}
+                  {solutionSummary.kb_articles_count > 0 && (
+                    <div className="pt-3 border-t border-[#e1e8f0]">
+                      <p className="text-xs text-[#61738d] flex items-center gap-1">
+                        <LibraryBig className="w-3 h-3" />
+                        Based on {solutionSummary.kb_articles_count} knowledge
+                        article
+                        {solutionSummary.kb_articles_count !== 1 ? "s" : ""}
+                      </p>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </CardContent>
@@ -745,11 +813,37 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
 
           <Card className="w-full xl:flex-1 p-4 md:p-5 lg:p-6 rounded-[14px] border-[0.67px] border-[#e1e8f0] bg-white shadow-sm">
             <CardContent className="p-0 flex flex-col gap-4 md:gap-6">
-              <div className="flex items-center gap-2">
-                <ActionsIcon />
-                <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
-                  Actions
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ActionsIcon />
+                  <h3 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#070f26] text-base leading-6">
+                    Actions
+                  </h3>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        aria-label="Show data source"
+                        className="cursor-pointer"
+                      >
+                        <Info className="w-4 h-4 text-[#155cfb]" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="bg-white border-[#155cfb] border-2 px-3 py-2 shadow-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-[#155cfb]" />
+                        <span className="text-[#070f26] text-xs font-semibold">
+                          NextThink
+                        </span>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               {isLoadingActions ? (
                 <div className="flex items-center justify-center py-8">
