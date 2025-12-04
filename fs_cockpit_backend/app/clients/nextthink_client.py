@@ -2,8 +2,10 @@
 import httpx
 import structlog
 from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
 from app.clients.base_cleint import BaseClient
 from app.exceptions.custom_exceptions import ExternalServiceError
+from app.utils.health_metrics import get_health_tracker
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -30,17 +32,20 @@ class NextThinkClient(BaseClient):
         self.scope = scope
         self.timeout = timeout
         self.access_token: Optional[str] = None
+        self.token_expiry: Optional[datetime] = None
         self.client = None
         
         # Initialize with NextThink API URL for API calls
         super().__init__(api_base_url, timeout)
     
     async def _get_access_token(self) -> str:
-        """Obtain OAuth2 access token from NextThink."""
-        if self.access_token:
+        """Obtain OAuth2 access token from NextThink with caching."""
+        # Check if we have a valid cached token
+        if self.access_token and self.token_expiry and datetime.now() < self.token_expiry:
+            logger.debug("Using cached access token", expires_in=(self.token_expiry - datetime.now()).total_seconds())
             return self.access_token
         
-        logger.debug("Getting NextThink access token", auth_base_url=self.auth_base_url)
+        logger.debug("Getting new NextThink access token", auth_base_url=self.auth_base_url)
         # NextThink uses /oauth2/default/v1/token endpoint
         token_url = f"{self.auth_base_url}/oauth2/default/v1/token"
         logger.debug("Token URL", url=token_url)
@@ -65,7 +70,13 @@ class NextThinkClient(BaseClient):
                 response.raise_for_status()
                 token_data = response.json()
                 self.access_token = token_data.get("access_token")
-                logger.debug("Successfully obtained NextThink access token")
+                
+                # Cache token with expiry (NextThink tokens typically expire in 3600 seconds)
+                # Set expiry to 5 minutes before actual expiry for safety margin
+                expires_in = token_data.get("expires_in", 3600)
+                self.token_expiry = datetime.now() + timedelta(seconds=expires_in - 300)
+                
+                logger.debug("Successfully obtained NextThink access token", expires_in=expires_in)
                 return self.access_token
         except httpx.HTTPError as e:
             logger.error("Failed to obtain NextThink access token", error=str(e))
@@ -80,21 +91,42 @@ class NextThinkClient(BaseClient):
     async def health_check(self) -> Dict[str, Any]:
         """
         Perform a lightweight health check by verifying token acquisition.
+        Uses cached token if available to minimize API calls.
+        Suitable for frequent polling (e.g., every 5 minutes).
         
         Returns:
             dict: Health status and connection details
         """
         try:
+            # Check if we have a cached token before making the call
+            was_cached = bool(self.access_token and self.token_expiry and datetime.now() < self.token_expiry)
+            
             token = await self._get_access_token()
-            return {
+            
+            result = {
                 "status": "healthy",
                 "service": "NextThink API",
                 "auth_url": self.auth_base_url,
                 "api_url": self.api_base_url,
-                "authenticated": bool(token)
+                "authenticated": bool(token),
+                "cached": was_cached
             }
+            
+            if self.token_expiry:
+                result["token_expires_in_seconds"] = int((self.token_expiry - datetime.now()).total_seconds())
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("NextThink", "healthy")
+            
+            return result
         except ExternalServiceError as e:
             logger.error("NextThink health check failed", error=str(e))
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("NextThink", "unhealthy", error=str(e))
+            
             return {
                 "status": "unhealthy",
                 "service": "NextThink API",

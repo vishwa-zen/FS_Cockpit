@@ -2,8 +2,10 @@
 import httpx
 import structlog
 from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
 from app.clients.base_cleint import BaseClient
 from app.exceptions.custom_exceptions import ExternalServiceError
+from app.utils.health_metrics import get_health_tracker
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -28,17 +30,20 @@ class IntuneClient(BaseClient):
         self.client_secret = client_secret
         self.timeout = timeout
         self.access_token: Optional[str] = None
+        self.token_expiry: Optional[datetime] = None
         self.client = None
         
         # Initialize with Graph API base URL for API calls
         super().__init__(graph_base_url, timeout)
     
     async def _get_access_token(self) -> str:
-        """Obtain OAuth2 access token from Microsoft Identity Platform."""
-        if self.access_token:
+        """Obtain OAuth2 access token from Microsoft Identity Platform with caching."""
+        # Check if we have a valid cached token
+        if self.access_token and self.token_expiry and datetime.now() < self.token_expiry:
+            logger.debug("Using cached access token", expires_in=(self.token_expiry - datetime.now()).total_seconds())
             return self.access_token
         
-        logger.debug("Getting access token", auth_base_url=self.auth_base_url, tenant_id=self.tenant_id)
+        logger.debug("Getting new access token", auth_base_url=self.auth_base_url, tenant_id=self.tenant_id)
         token_url = f"{self.auth_base_url}/{self.tenant_id}/oauth2/v2.0/token"
         logger.debug("Token URL", url=token_url)
         
@@ -55,7 +60,13 @@ class IntuneClient(BaseClient):
                 response.raise_for_status()
                 token_data = response.json()
                 self.access_token = token_data.get("access_token")
-                logger.debug("Successfully obtained access token")
+                
+                # Cache token with expiry (Microsoft tokens typically expire in 3600 seconds)
+                # Set expiry to 5 minutes before actual expiry for safety margin
+                expires_in = token_data.get("expires_in", 3600)
+                self.token_expiry = datetime.now() + timedelta(seconds=expires_in - 300)
+                
+                logger.debug("Successfully obtained access token", expires_in=expires_in)
                 return self.access_token
         except httpx.HTTPError as e:
             logger.error("Failed to obtain access token", error=str(e))
@@ -70,23 +81,43 @@ class IntuneClient(BaseClient):
     async def health_check(self) -> Dict[str, Any]:
         """
         Perform a lightweight health check by verifying token acquisition.
+        Uses cached token if available to minimize API calls.
         Suitable for frequent polling (e.g., every 5 minutes).
         
         Returns:
             dict: Health status and connection details
         """
         try:
+            # Check if we have a cached token before making the call
+            was_cached = bool(self.access_token and self.token_expiry and datetime.now() < self.token_expiry)
+            
             token = await self._get_access_token()
-            return {
+            
+            result = {
                 "status": "healthy",
                 "service": "Microsoft Graph API",
                 "auth_url": self.auth_base_url,
                 "graph_url": self.graph_base_url,
                 "tenant_id": self.tenant_id,
-                "authenticated": bool(token)
+                "authenticated": bool(token),
+                "cached": was_cached
             }
+            
+            if self.token_expiry:
+                result["token_expires_in_seconds"] = int((self.token_expiry - datetime.now()).total_seconds())
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("Intune", "healthy")
+            
+            return result
         except ExternalServiceError as e:
             logger.error("Intune health check failed", error=str(e))
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("Intune", "unhealthy", error=str(e))
+            
             return {
                 "status": "unhealthy",
                 "service": "Microsoft Graph API",

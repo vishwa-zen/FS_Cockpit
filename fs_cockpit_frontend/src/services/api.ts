@@ -651,6 +651,188 @@ export const diagnosticsAPI = {
   },
 };
 
+// Health Check API types
+export interface HealthCheckData {
+  status: string;
+  service: string;
+  authenticated: boolean;
+  response_received?: boolean;
+  cached?: boolean;
+  token_expires_in_seconds?: number;
+  instance_url?: string;
+  auth_url?: string;
+  api_url?: string;
+  graph_url?: string;
+  tenant_id?: string;
+  request_id: string;
+}
+
+export interface ServiceMetrics {
+  service: string;
+  time_period_hours: number;
+  current_status: string;
+  last_state_change: string;
+  total_checks: number;
+  healthy_checks: number;
+  unhealthy_checks: number;
+  uptime_percentage: number;
+  downtime_percentage: number;
+  total_downtime_minutes: number;
+  downtime_periods: Array<{
+    start: string;
+    end: string;
+    duration_minutes: number;
+  }>;
+  first_check: string;
+  last_check: string;
+}
+
+export interface HealthMetricsData {
+  time_period_hours: number;
+  services: {
+    servicenow: ServiceMetrics;
+    intune: ServiceMetrics;
+    nextthink: ServiceMetrics;
+  };
+  generated_at: string;
+}
+
+export const healthAPI = {
+  // Check ServiceNow health
+  checkServiceNowHealth: async () => {
+    try {
+      const response = await apiClient.get<ApiResponse<HealthCheckData>>(
+        "/servicenow/health"
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "ServiceNow health check failed"
+      );
+    } catch (error: any) {
+      logger.error("ServiceNow health check failed", error);
+      return {
+        data: null,
+        success: false,
+        message: error?.message || "ServiceNow unavailable",
+      };
+    }
+  },
+
+  // Check Intune health
+  checkIntuneHealth: async () => {
+    try {
+      const response = await apiClient.get<ApiResponse<HealthCheckData>>(
+        "/intune/health"
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(response.data.message || "Intune health check failed");
+    } catch (error: any) {
+      logger.error("Intune health check failed", error);
+      return {
+        data: null,
+        success: false,
+        message: error?.message || "Intune unavailable",
+      };
+    }
+  },
+
+  // Check NextThink health
+  checkNextThinkHealth: async () => {
+    try {
+      const response = await apiClient.get<ApiResponse<HealthCheckData>>(
+        "/nextthink/health"
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(response.data.message || "NextThink health check failed");
+    } catch (error: any) {
+      logger.error("NextThink health check failed", error);
+      return {
+        data: null,
+        success: false,
+        message: error?.message || "NextThink unavailable",
+      };
+    }
+  },
+
+  // Get health metrics for all services
+  getHealthMetrics: async (hours: number = 24) => {
+    try {
+      const response = await apiClient.get<ApiResponse<HealthMetricsData>>(
+        `/health/metrics?hours=${hours}`
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Failed to fetch health metrics"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch health metrics", error);
+      return {
+        data: null,
+        success: false,
+        message: error?.message || "Metrics unavailable",
+      };
+    }
+  },
+
+  // Check all services health in parallel
+  checkAllServicesHealth: async () => {
+    try {
+      const [serviceNowResult, intuneResult, nextThinkResult] =
+        await Promise.allSettled([
+          healthAPI.checkServiceNowHealth(),
+          healthAPI.checkIntuneHealth(),
+          healthAPI.checkNextThinkHealth(),
+        ]);
+
+      return {
+        serviceNow:
+          serviceNowResult.status === "fulfilled"
+            ? serviceNowResult.value
+            : { data: null, success: false, message: "Check failed" },
+        intune:
+          intuneResult.status === "fulfilled"
+            ? intuneResult.value
+            : { data: null, success: false, message: "Check failed" },
+        nextThink:
+          nextThinkResult.status === "fulfilled"
+            ? nextThinkResult.value
+            : { data: null, success: false, message: "Check failed" },
+      };
+    } catch (error: any) {
+      logger.error("Failed to check all services health", error);
+      return {
+        serviceNow: { data: null, success: false, message: "Check failed" },
+        intune: { data: null, success: false, message: "Check failed" },
+        nextThink: { data: null, success: false, message: "Check failed" },
+      };
+    }
+  },
+};
+
 export const systemStatusAPI = {
   getStatus: async () => {
     try {

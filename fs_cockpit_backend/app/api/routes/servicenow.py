@@ -19,6 +19,24 @@ async def get_service():
     """Dependency to get ServiceNowService instance."""
     return ServiceNowService()
 
+@router.get("/health", summary="ServiceNow Health Check")
+async def servicenow_health_check(
+    request_id: str = Depends(_get_request_id),
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Health check endpoint for ServiceNow integration.
+
+    Args:
+        request_id (str): The unique request identifier.
+    Returns:
+        dict: A dictionary indicating the health status.
+    """
+    logger.info("ServiceNow health check", request_id=request_id)
+    result = await service.health_check()
+    result["request_id"] = request_id
+    return result
+
 @router.get("/user/{username}/sys_id", summary="Get ServiceNow User Sys ID by Username")
 async def fetch_user_sys_id_by_username(username: str, service: ServiceNowService = Depends(get_service)):
     """

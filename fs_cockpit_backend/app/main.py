@@ -14,6 +14,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 import structlog
 
 from app.api.routes import intune, servicenow, nextthink
+from app.api.routes import health_metrics
 from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.request_id import RequestIDMiddleware, get_request_id
 from app.middleware.error_handler import GlobalErrorHandlerMiddleware
@@ -102,6 +103,7 @@ class FSCockpitApplication:
         self._app.include_router(servicenow.router)
         self._app.include_router(intune.router)
         self._app.include_router(nextthink.router)
+        self._app.include_router(health_metrics.router)
         # Debug: record the order of user-registered middleware for visibility
         try:
             mw_names = [mw.cls.__name__ for mw in self._app.user_middleware]

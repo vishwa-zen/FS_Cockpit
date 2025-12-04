@@ -27,6 +27,19 @@ class ServiceNowService:
         self.sn_username = self.settings.SERVICENOW_USERNAME
         self.sn_password = self.settings.SERVICENOW_PASSWORD
 
+    async def health_check(self) -> dict:
+        """
+        Perform a health check by verifying connection to ServiceNow.
+
+        Returns:
+            dict: Health status and connection details
+        """
+        logger.debug("Performing ServiceNow health check", instance_url=self.base_url)
+        
+        async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
+            result = await client.health_check()
+        
+        return result
 
     async def fetch_user_sys_id_by_username(self, username: str) -> str:
         """

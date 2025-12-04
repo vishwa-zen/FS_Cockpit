@@ -15,7 +15,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useTickets } from "../shared/TicketsContext";
-// systemStatusAPI is not used in this component; use systemStatusData constant instead
+import { SystemStatusBar } from "../../../../components/SystemStatusBar";
 import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
 import { Button } from "../../../../components/ui/button";
 import {
@@ -38,12 +38,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../../../components/ui/tabs";
-
-const systemStatusData = [
-  { name: "ServiceNow", status: "operational", color: "bg-[#00c950]" },
-  { name: "Nexthink", status: "degraded", color: "bg-[#f0b100]" },
-  { name: "Intune / SCCM", status: "operational", color: "bg-[#00c950]" },
-];
 
 export const HomeSearchSection = (): JSX.Element => {
   const navigate = useNavigate();
@@ -959,37 +953,7 @@ export const HomeSearchSection = (): JSX.Element => {
         </main>
       </div>
 
-      <footer className="flex-shrink-0 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 lg:px-8 py-2 md:py-2 bg-[#fffffff2] border-t-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] min-h-[41px]">
-        <div className="flex items-center gap-3 md:gap-6 flex-wrap">
-          <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
-            System Status:
-          </span>
-          <div className="flex items-center gap-3 md:gap-6 flex-wrap">
-            {systemStatusData.map((system, index) => (
-              <div
-                key={`system-${index}`}
-                className="flex items-center gap-2 px-2 py-0 rounded"
-              >
-                <div
-                  className={`w-2 h-2 ${system.color} rounded-full opacity-[0.98]`}
-                />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#314157] text-xs leading-4">
-                  {system.name}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          className="h-auto p-0 hover:bg-transparent gap-1 transition-colors"
-        >
-          <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
-            Details
-          </span>
-          <InfoIcon className="w-4 h-4 text-[#61738d]" />
-        </Button>
-      </footer>
+      <SystemStatusBar />
     </section>
   );
 };

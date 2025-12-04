@@ -4,6 +4,7 @@ import structlog
 
 from app.clients.base_cleint import BaseClient
 from app.exceptions.custom_exceptions import ExternalServiceError
+from app.utils.health_metrics import get_health_tracker
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -29,6 +30,67 @@ class ServiceNowClient(BaseClient):
         self.default_headers = headers
 
         super().__init__(base_url, timeout, auth=basic_auth, auth_headers=headers)
+    
+    async def health_check(self) -> dict:
+        """
+        Perform a lightweight health check by verifying connection to ServiceNow.
+        Makes a minimal API call to check authentication and connectivity.
+        
+        Returns:
+            dict: Health status and connection details
+        """
+        try:
+            # Make a lightweight API call to verify connection
+            # Using sys_user table with limit=1 is minimal and fast
+            endpoint = "/api/now/table/sys_user"
+            params = {"sysparm_limit": "1", "sysparm_fields": "sys_id"}
+            response = await self.get(endpoint, params=params)
+            
+            # If we get here, authentication and connection are working
+            result = {
+                "status": "healthy",
+                "service": "ServiceNow",
+                "instance_url": self.base_url,
+                "authenticated": True,
+                "response_received": bool(response)
+            }
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("ServiceNow", "healthy")
+            
+            return result
+        except httpx.HTTPError as e:
+            logger.error("ServiceNow health check failed", error=str(e))
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("ServiceNow", "unhealthy", error=str(e))
+            
+            return {
+                "status": "unhealthy",
+                "service": "ServiceNow",
+                "instance_url": self.base_url,
+                "authenticated": False,
+                "error": str(e),
+                "status_code": status
+            }
+        except Exception as e:
+            logger.error("ServiceNow health check failed with unexpected error", error=str(e))
+            
+            # Track health metrics
+            tracker = get_health_tracker()
+            tracker.record_health_check("ServiceNow", "unhealthy", error=str(e))
+            
+            return {
+                "status": "unhealthy",
+                "service": "ServiceNow",
+                "instance_url": self.base_url,
+                "authenticated": False,
+                "error": str(e)
+            }
         
         
     async def fetch_user_sys_id_by_username(self, username: str) -> str:
