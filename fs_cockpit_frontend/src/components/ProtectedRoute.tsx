@@ -16,6 +16,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       const token = localStorage.getItem("msal.token");
       const account = localStorage.getItem("msal.account");
 
+      console.log("[ProtectedRoute] msal.token value:", token);
+      console.log("[ProtectedRoute] msal.account value:", account);
       console.log("[ProtectedRoute] Checking auth for:", location.pathname, {
         hasToken: !!token,
         hasAccount: !!account,

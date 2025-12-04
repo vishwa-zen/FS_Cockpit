@@ -11,13 +11,13 @@ export const msalConfig: Configuration = {
     redirectUri:
       typeof window !== "undefined"
         ? window.location.origin
-        : "http://localhost:8000",
+        : "http://localhost:3000",
     postLogoutRedirectUri:
       typeof window !== "undefined"
         ? window.location.origin
-        : "http://localhost:8000",
-    navigateToLoginRequestUrl: false,
+        : "http://localhost:3000",
     knownAuthorities: ["zenpoc.b2clogin.com"],
+    navigateToLoginRequestUrl: false,
   },
   cache: {
     cacheLocation: "sessionStorage",
@@ -25,6 +25,10 @@ export const msalConfig: Configuration = {
   },
   system: {
     allowNativeBroker: false,
+    windowHashTimeout: 60000,
+    iframeHashTimeout: 6000,
+    loadFrameTimeout: 0,
+    asyncPopups: false,
     loggerOptions: {
       loggerCallback: (level, message, containsPii) => {
         if (containsPii) {
@@ -65,11 +69,7 @@ export const loginRequest = {
  */
 export const popupLoginRequest = {
   scopes: ["openid", "profile", "email"],
-  prompt: "login",
-  redirectUri:
-    typeof window !== "undefined"
-      ? window.location.origin
-      : "http://localhost:3000",
+  prompt: "select_account",
 };
 
 /**

@@ -97,16 +97,16 @@ export const apiClient = axios.create({
  */
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("msal.token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      logger.debug("Request with auth token", {
+    const idToken = localStorage.getItem("msal.idToken");
+    if (idToken) {
+      config.headers.Authorization = `Bearer ${idToken}`;
+      logger.debug("Request with ID token", {
         url: config.url,
         method: config.method,
-        tokenPrefix: token.substring(0, 20) + "...",
+        tokenPrefix: idToken.substring(0, 20) + "...",
       });
     } else {
-      logger.warn("No auth token found for request", {
+      logger.warn("No ID token found for request", {
         url: config.url,
         method: config.method,
       });

@@ -67,11 +67,30 @@ export const SignInSection = (): JSX.Element => {
     setError(null);
 
     try {
-      console.log("Initiating login popup...");
-      console.log("Login request:", popupLoginRequest);
+      console.log("[SignIn] Initiating login popup...");
+      console.log("[SignIn] Login request:", popupLoginRequest);
+      console.log("[SignIn] Current URL:", window.location.href);
 
-      // Use popup for authentication - MSAL will handle the popup window
-      const response = await instance.loginPopup(popupLoginRequest);
+      // CRITICAL: Force popup mode - do not allow redirect fallback
+      const response = await instance
+        .loginPopup({
+          ...popupLoginRequest,
+        })
+        .catch((error) => {
+          console.error("[SignIn] Popup error:", error);
+          // Check if popup was blocked
+          if (
+            error.errorCode === "popup_window_error" ||
+            error.errorCode === "empty_window_error" ||
+            error.errorCode === "monitor_window_timeout" ||
+            error.errorMessage?.includes("popup")
+          ) {
+            throw new Error(
+              "Popup blocked! Please allow popups for this site in your browser settings and try again."
+            );
+          }
+          throw error;
+        });
 
       console.log("Login successful:", response);
       console.log("Login response - full response:", {
@@ -86,21 +105,21 @@ export const SignInSection = (): JSX.Element => {
       });
 
       // Store both tokens - backend might need ID token instead of access token
-      if (response.idToken) {
-        // Store ID token as the main token (most backends expect this for B2C)
-        localStorage.setItem("msal.token", response.idToken);
-        localStorage.setItem("msal.idToken", response.idToken);
-        console.log(
-          "[SignIn] ✅ ID Token stored as main token, length:",
-          response.idToken.length
-        );
-      }
-
       if (response.accessToken) {
+        // Store access token as main token for API requests
+        localStorage.setItem("msal.token", response.accessToken);
         localStorage.setItem("msal.accessToken", response.accessToken);
         console.log(
-          "[SignIn] ✅ Access Token stored separately, length:",
+          "[SignIn] ✅ Access Token stored as main token, length:",
           response.accessToken.length
+        );
+      }
+      if (response.idToken) {
+        localStorage.setItem("msal.idToken", response.idToken);
+        localStorage.setItem("msal.token", response.idToken);
+        console.log(
+          "[SignIn] ✅ ID Token stored as msal.token, length:",
+          response.idToken.length
         );
       }
 
@@ -286,6 +305,7 @@ export const SignInSection = (): JSX.Element => {
               )}
 
               <Button
+                type="button"
                 onClick={handleSignIn}
                 disabled={isLoading}
                 className="h-12 md:h-14 bg-[#4361EE] hover:bg-[#3451DD] rounded-lg justify-start gap-2 md:gap-3 px-3 transition-colors disabled:opacity-50"
