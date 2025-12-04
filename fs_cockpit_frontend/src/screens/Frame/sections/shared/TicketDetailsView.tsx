@@ -286,7 +286,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
    * @returns Formatted string with GB units (e.g., "512.00 GB")
    */
   const formatStorage = (bytes?: number): string => {
-    if (!bytes) return "N/A";
+    if (bytes === undefined || bytes === null) return "N/A";
     const gb = bytes / (1024 * 1024 * 1024);
     return `${gb.toFixed(2)} GB`;
   };
@@ -718,7 +718,10 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                           {article.title}
                         </p>
                         <Badge className="h-auto px-2 py-0.5 rounded-lg text-xs bg-blue-100 text-[#1347e5] border-0 flex-shrink-0">
-                          {article.score.toFixed(0)}%
+                          {article.score !== undefined && article.score !== null
+                            ? article.score.toFixed(0)
+                            : "N/A"}
+                          %
                         </Badge>
                       </div>
                       <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#5876ab] text-xs leading-4 break-words">

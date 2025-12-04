@@ -227,7 +227,7 @@ export const StubbedTicketDetailsView: React.FC<
   }, []);
 
   const formatStorage = (bytes?: number): string => {
-    if (!bytes) return "N/A";
+    if (bytes === undefined || bytes === null) return "N/A";
     const gb = bytes / (1024 * 1024 * 1024);
     return `${gb.toFixed(2)} GB`;
   };

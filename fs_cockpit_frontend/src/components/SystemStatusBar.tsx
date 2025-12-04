@@ -122,7 +122,8 @@ export const SystemStatusBar = () => {
   };
 
   const formatUptime = (percentage?: number) => {
-    if (percentage === undefined || percentage === null) return "N/A";
+    if (percentage === undefined || percentage === null || isNaN(percentage))
+      return "N/A";
     return `${percentage.toFixed(2)}%`;
   };
 
