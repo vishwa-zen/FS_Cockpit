@@ -1,4 +1,5 @@
 """API routes for NextThink integration."""
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 import structlog
 from app.middleware.request_id import get_request_id as _get_request_id
@@ -233,18 +234,42 @@ async def get_recommendations(
         incident.deviceName = request.device_name
         logger.info("Using override device name", device_name=request.device_name)
     else:
-        # Try to resolve device name if it's a sys_id
+        # Parallel execution: resolve device name and get device from caller simultaneously
+        # These operations are independent and can run in parallel
+        resolve_device_task = None
+        get_caller_device_task = None
+        
+        # Task 1: Try to resolve device name if it's a sys_id
         if incident.deviceName:
-            resolved_name = await servicenow_service.resolve_device_name(incident.deviceName)
+            resolve_device_task = servicenow_service.resolve_device_name(incident.deviceName)
+        
+        # Task 2: Try to get device from caller_id (from request or incident)
+        caller_sys_id = request.caller_id or incident.callerId
+        if not incident.deviceName and caller_sys_id:
+            get_caller_device_task = servicenow_service.get_device_name_from_caller(caller_sys_id)
+        
+        # Execute tasks in parallel if both exist
+        if resolve_device_task and get_caller_device_task:
+            resolved_name, device_from_caller = await asyncio.gather(
+                resolve_device_task,
+                get_caller_device_task,
+                return_exceptions=True
+            )
+            # Use resolved name if available, otherwise use caller device
+            if not isinstance(resolved_name, Exception) and resolved_name:
+                incident.deviceName = resolved_name
+                logger.info("Resolved device name from cmdb_ci", device_name=resolved_name)
+            elif not isinstance(device_from_caller, Exception) and device_from_caller:
+                incident.deviceName = device_from_caller
+                logger.info("Resolved device name from caller", device_name=device_from_caller)
+        elif resolve_device_task:
+            resolved_name = await resolve_device_task
             if resolved_name:
                 incident.deviceName = resolved_name
                 logger.info("Resolved device name from cmdb_ci", device_name=resolved_name)
-        
-        # If still no device name, try to get it from caller_id (from request or incident)
-        caller_sys_id = request.caller_id or incident.callerId
-        if not incident.deviceName and caller_sys_id:
+        elif get_caller_device_task:
             logger.info("Attempting to get device from caller", caller_id=caller_sys_id)
-            device_from_caller = await servicenow_service.get_device_name_from_caller(caller_sys_id)
+            device_from_caller = await get_caller_device_task
             if device_from_caller:
                 incident.deviceName = device_from_caller
                 logger.info("Resolved device name from caller", device_name=device_from_caller, source="request" if request.caller_id else "incident")

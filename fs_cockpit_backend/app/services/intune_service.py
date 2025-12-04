@@ -7,6 +7,7 @@ import structlog
 from app.clients.intune_client import IntuneClient
 from app.config.settings import get_settings
 from app.schemas.device import DeviceDTO
+from app.cache.memory_cache import get_cache
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -28,6 +29,7 @@ class IntuneService:
         self.client_secret = self.settings.INTUNE_CLIENT_SECRET
         self.scope = self.settings.INTUNE_SCOPE
         self.grant_type = self.settings.INTUNE_GRANT_TYPE
+        self.cache = get_cache() if self.settings.CACHE_ENABLED else None
 
     def _map_device_to_dto(self, device: dict) -> DeviceDTO:
         """Map a raw device record from Graph API to DeviceDTO."""
@@ -94,6 +96,7 @@ class IntuneService:
     async def fetch_devices_by_email(self, email: str) -> List[DeviceDTO]:
         """
         Fetch all devices associated with a user's email.
+        Cached for 15 minutes since device associations are relatively stable.
 
         Args:
             email (str): The user's email (UPN)
@@ -101,6 +104,14 @@ class IntuneService:
         Returns:
             List[DeviceDTO]: List of devices
         """
+        # Check cache first
+        if self.cache:
+            cache_key = f"intune:devices_by_email:{email}"
+            cached_devices = self.cache.get(cache_key)
+            if cached_devices is not None:
+                logger.debug("Cache hit for devices by email", email=email)
+                return cached_devices
+        
         logger.debug("Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id)
 
         async with IntuneClient(self.graph_url, self.tenant_id, self.client_id, self.client_secret, auth_base_url=self.base_url) as client:
@@ -108,11 +119,18 @@ class IntuneService:
 
         devices = raw.get("value", [])
         dtos: List[DeviceDTO] = [self._map_device_to_dto(d) for d in devices]
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
+            logger.debug("Cached devices by email", email=email, count=len(dtos))
+        
         return dtos
 
     async def fetch_devices_by_name(self, device_name: str) -> List[DeviceDTO]:
         """
         Fetch devices by device name.
+        Cached for 15 minutes since device info is relatively stable.
 
         Args:
             device_name (str): The device name
@@ -120,6 +138,14 @@ class IntuneService:
         Returns:
             List[DeviceDTO]: List of devices matching the name
         """
+        # Check cache first
+        if self.cache:
+            cache_key = f"intune:devices_by_name:{device_name}"
+            cached_devices = self.cache.get(cache_key)
+            if cached_devices is not None:
+                logger.debug("Cache hit for devices by name", device_name=device_name)
+                return cached_devices
+        
         logger.debug("Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id)
 
         async with IntuneClient(self.graph_url, self.tenant_id, self.client_id, self.client_secret, auth_base_url=self.base_url) as client:
@@ -127,11 +153,18 @@ class IntuneService:
 
         devices = raw.get("value", [])
         dtos: List[DeviceDTO] = [self._map_device_to_dto(d) for d in devices]
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
+            logger.debug("Cached devices by name", device_name=device_name, count=len(dtos))
+        
         return dtos
 
     async def fetch_device_by_id(self, device_id: str) -> Optional[DeviceDTO]:
         """
         Fetch a specific device by its ID.
+        Cached for 15 minutes since device info is relatively stable.
 
         Args:
             device_id (str): The Intune device ID
@@ -139,6 +172,14 @@ class IntuneService:
         Returns:
             Optional[DeviceDTO]: The device details or None if not found
         """
+        # Check cache first
+        if self.cache:
+            cache_key = f"intune:device_by_id:{device_id}"
+            cached_device = self.cache.get(cache_key)
+            if cached_device is not None:
+                logger.debug("Cache hit for device by ID", device_id=device_id)
+                return cached_device
+        
         logger.debug("Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id)
 
         async with IntuneClient(self.graph_url, self.tenant_id, self.client_id, self.client_secret, auth_base_url=self.base_url) as client:
@@ -147,4 +188,11 @@ class IntuneService:
         if not raw:
             return None
 
-        return self._map_device_to_dto(raw)
+        device_dto = self._map_device_to_dto(raw)
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, device_dto, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
+            logger.debug("Cached device by ID", device_id=device_id)
+        
+        return device_dto

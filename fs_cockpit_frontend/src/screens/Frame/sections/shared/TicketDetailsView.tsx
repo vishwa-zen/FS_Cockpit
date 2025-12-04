@@ -151,161 +151,133 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   const [actionsError, setActionsError] = useState<string | null>(null);
 
   /**
-   * Fetch all ticket-related data in parallel
+   * Fetch all ticket-related data independently
    *
-   * Executes four API calls simultaneously for optimal performance:
+   * Executes four API calls independently so each section renders as soon as its data arrives:
    * 1. Ticket details - Full incident information
    * 2. Device details - Hardware specs and health status
    * 3. Knowledge articles - Relevant documentation
    * 4. Remote actions - Recommended remediation actions
    *
-   * Uses Promise.allSettled to ensure independent error handling
-   * for each API call without blocking others.
+   * Each API call updates its own loading state independently for progressive rendering.
    */
   useEffect(() => {
-    const fetchAllData = async () => {
+    // Fetch ticket details
+    const fetchTicketDetails = async () => {
       setIsLoadingTicket(true);
-      setIsLoadingDevice(true);
-      setIsLoadingKnowledge(true);
-      setIsLoadingActions(true);
-      setDeviceError(null);
-      setKnowledgeError(null);
-      setActionsError(null);
-
       try {
-        // Start all API calls in parallel for optimal performance
-        const [
-          ticketResponse,
-          deviceResponse,
-          knowledgeResponse,
-          actionsResponse,
-        ] = await Promise.allSettled([
-          // Fetch ticket details
-          ticketsAPI.getIncidentDetails(initialTicket.id),
-          // Fetch device details (using initial ticket data)
-          deviceAPI.getDeviceDetailsOrchestrated(
-            initialTicket.device,
-            initialTicket.callerId || undefined
-          ),
-          // Fetch knowledge articles
-          knowledgeAPI.getKnowledgeArticles(initialTicket.id, 3),
-          // Fetch remote actions/recommendations
-          remoteActionsAPI.getRecommendations(
-            initialTicket.id,
-            initialTicket.device,
-            initialTicket.callerId || undefined,
-            3
-          ),
-        ]);
-
-        // Handle ticket details response
-        if (
-          ticketResponse.status === "fulfilled" &&
-          ticketResponse.value.success &&
-          ticketResponse.value.data
-        ) {
-          setTicket(ticketResponse.value.data);
+        const result = await ticketsAPI.getIncidentDetails(initialTicket.id);
+        if (result.success && result.data) {
+          setTicket(result.data);
         } else {
-          // Fallback to initial ticket data if API fails
           setTicket(initialTicket);
         }
-        setIsLoadingTicket(false);
-
-        // Handle device details response with contextual error messages
-        if (
-          deviceResponse.status === "fulfilled" &&
-          deviceResponse.value.success &&
-          deviceResponse.value.data
-        ) {
-          setDeviceDetails(deviceResponse.value.data);
-        } else {
-          let errorMsg = "Unable to load device information";
-          if (deviceResponse.status === "rejected") {
-            errorMsg = "Device service is temporarily unavailable";
-          } else if (deviceResponse.status === "fulfilled") {
-            const apiMessage = deviceResponse.value.message;
-            // Don't show generic success messages as errors
-            if (
-              apiMessage &&
-              !apiMessage.includes("Operation completed successfully")
-            ) {
-              errorMsg = apiMessage;
-            } else {
-              errorMsg = "Device information not found for this incident";
-            }
-          }
-          setDeviceError(errorMsg);
-        }
-        setIsLoadingDevice(false);
-
-        // Handle knowledge articles response with contextual error messages
-        if (
-          knowledgeResponse.status === "fulfilled" &&
-          knowledgeResponse.value.success &&
-          knowledgeResponse.value.data
-        ) {
-          setKnowledgeArticles(knowledgeResponse.value.data);
-        } else {
-          let errorMsg = "Unable to load knowledge articles";
-          if (knowledgeResponse.status === "rejected") {
-            errorMsg = "Knowledge base service is temporarily unavailable";
-          } else if (knowledgeResponse.status === "fulfilled") {
-            const apiMessage = knowledgeResponse.value.message;
-            // Don't show generic success messages as errors
-            if (
-              apiMessage &&
-              !apiMessage.includes("Operation completed successfully")
-            ) {
-              errorMsg = apiMessage;
-            } else {
-              errorMsg = "No relevant articles found";
-            }
-          }
-          setKnowledgeError(errorMsg);
-        }
-        setIsLoadingKnowledge(false);
-
-        // Handle remote actions response with contextual error messages
-        if (
-          actionsResponse.status === "fulfilled" &&
-          actionsResponse.value.success &&
-          actionsResponse.value.data
-        ) {
-          setRemoteActions(actionsResponse.value.data);
-        } else {
-          let errorMsg = "Unable to load recommended actions";
-          if (actionsResponse.status === "rejected") {
-            errorMsg = "Actions service is temporarily unavailable";
-          } else if (actionsResponse.status === "fulfilled") {
-            const apiMessage = actionsResponse.value.message;
-            // Don't show generic success messages as errors
-            if (
-              apiMessage &&
-              !apiMessage.includes("Operation completed successfully")
-            ) {
-              errorMsg = apiMessage;
-            } else {
-              errorMsg = "No recommendations available";
-            }
-          }
-          setActionsError(errorMsg);
-        }
-        setIsLoadingActions(false);
       } catch (error) {
-        // Global error handler for unexpected failures
         setTicket(initialTicket);
-        setDeviceError("Unable to connect to device service");
-        setKnowledgeError("Unable to connect to knowledge base");
-        setActionsError("Unable to connect to actions service");
+      } finally {
         setIsLoadingTicket(false);
+      }
+    };
+
+    // Fetch device details
+    const fetchDeviceDetails = async () => {
+      setIsLoadingDevice(true);
+      setDeviceError(null);
+      try {
+        const result = await deviceAPI.getDeviceDetailsOrchestrated(
+          initialTicket.device,
+          initialTicket.callerId || undefined
+        );
+        if (result.success && result.data) {
+          setDeviceDetails(result.data);
+        } else {
+          // API succeeded but no data - show appropriate message
+          const apiMessage = result.message;
+          if (
+            apiMessage &&
+            !apiMessage.includes("Operation completed successfully")
+          ) {
+            setDeviceError(apiMessage);
+          } else {
+            setDeviceError(
+              "Device information not available for this incident"
+            );
+          }
+        }
+      } catch (error) {
+        // Network/connection error - service unavailable
+        setDeviceError("Device details temporarily unavailable");
+      } finally {
         setIsLoadingDevice(false);
+      }
+    };
+
+    // Fetch knowledge articles
+    const fetchKnowledgeArticles = async () => {
+      setIsLoadingKnowledge(true);
+      setKnowledgeError(null);
+      try {
+        const result = await knowledgeAPI.getKnowledgeArticles(
+          initialTicket.id,
+          3
+        );
+        if (result.success && result.data) {
+          setKnowledgeArticles(result.data);
+        } else {
+          const apiMessage = result.message;
+          if (
+            apiMessage &&
+            !apiMessage.includes("Operation completed successfully")
+          ) {
+            setKnowledgeError(apiMessage);
+          } else {
+            setKnowledgeError("No relevant articles found");
+          }
+        }
+      } catch (error) {
+        setKnowledgeError("Knowledge base service is temporarily unavailable");
+      } finally {
         setIsLoadingKnowledge(false);
+      }
+    };
+
+    // Fetch remote actions
+    const fetchRemoteActions = async () => {
+      setIsLoadingActions(true);
+      setActionsError(null);
+      try {
+        const result = await remoteActionsAPI.getRecommendations(
+          initialTicket.id,
+          initialTicket.device,
+          initialTicket.callerId || undefined,
+          3
+        );
+        if (result.success && result.data) {
+          setRemoteActions(result.data);
+        } else {
+          const apiMessage = result.message;
+          if (
+            apiMessage &&
+            !apiMessage.includes("Operation completed successfully")
+          ) {
+            setActionsError(apiMessage);
+          } else {
+            setActionsError("No recommendations available");
+          }
+        }
+      } catch (error) {
+        setActionsError("Actions temporarily unavailable");
+      } finally {
         setIsLoadingActions(false);
       }
     };
 
-    fetchAllData();
-  }, [initialTicket.id]);
+    // Execute all fetches independently (they run in parallel but update independently)
+    fetchTicketDetails();
+    fetchDeviceDetails();
+    fetchKnowledgeArticles();
+    fetchRemoteActions();
+  }, [initialTicket]);
 
   /**
    * Format storage bytes to GB

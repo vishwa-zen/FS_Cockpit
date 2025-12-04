@@ -10,6 +10,7 @@ from app.config.settings import get_settings
 from app.schemas.incident import IncidentDTO
 from app.schemas.computer import ComputerDTO
 from app.schemas.knowledge import KnowledgeArticleDTO
+from app.cache.memory_cache import get_cache
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -26,6 +27,7 @@ class ServiceNowService:
         self.base_url = self.settings.SERVICENOW_INSTANCE_URL
         self.sn_username = self.settings.SERVICENOW_USERNAME
         self.sn_password = self.settings.SERVICENOW_PASSWORD
+        self.cache = get_cache() if self.settings.CACHE_ENABLED else None
 
     async def health_check(self) -> dict:
         """
@@ -44,6 +46,7 @@ class ServiceNowService:
     async def fetch_user_sys_id_by_username(self, username: str) -> str:
         """
         Fetches the ServiceNow `sys_id` for a user given their username.
+        Cached for 1 hour since user data rarely changes.
 
         Args:
             username (str): The user_name (login) of the ServiceNow user to look up.
@@ -51,15 +54,31 @@ class ServiceNowService:
         Returns:
             str: The ServiceNow `sys_id` for the user, or an empty string if not found.
         """
-        logger.debug("Connecting to ServiceNow", base_url=self.base_url, sn_username=self.sn_username)
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:user_sys_id:{username}"
+            cached_sys_id = self.cache.get(cache_key)
+            if cached_sys_id is not None:
+                logger.debug("Cache hit for user sys_id", username=username)
+                return cached_sys_id
+        
+        logger.debug("Connecting to ServiceNow", instance_url=self.base_url)
 
         async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
-            return await client.fetch_user_sys_id_by_username(username)
+            sys_id = await client.fetch_user_sys_id_by_username(username)
+        
+        # Cache the result
+        if self.cache and sys_id:
+            self.cache.set(cache_key, sys_id, ttl_seconds=self.settings.CACHE_TTL_USER)
+            logger.debug("Cached user sys_id", username=username)
+        
+        return sys_id
         
     
     async def fetch_incidents_by_technician(self, technician_username: str, cmdb_ci_name: str | None = None) -> List[IncidentDTO]:
         """
         Retrieve incidents assigned to a specific technician.
+        Cached for 5 minutes since incident lists change frequently.
 
         Args:
             technician_username (str): The username of the technician.
@@ -67,7 +86,16 @@ class ServiceNowService:
         Returns:
             dict: A dictionary containing incident information.
         """
-        logger.debug("Connecting to ServiceNow", base_url=self.base_url, sn_username=self.sn_username)
+        # Check cache first
+        if self.cache:
+            device_key = cmdb_ci_name or "all"
+            cache_key = f"sn:incidents_by_tech:{technician_username}:{device_key}"
+            cached_incidents = self.cache.get(cache_key)
+            if cached_incidents is not None:
+                logger.debug("Cache hit for incidents by technician", username=technician_username)
+                return cached_incidents
+        
+        logger.debug("Connecting to ServiceNow", instance_url=self.base_url)
 
         async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
             raw = await client.fetch_incidents_by_technician(technician_username, cmdb_ci_name=cmdb_ci_name)
@@ -76,6 +104,12 @@ class ServiceNowService:
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
         # sort by openedAt (newest first)
         dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_INCIDENT)
+            logger.debug("Cached incidents by technician", username=technician_username, count=len(dtos))
+        
         return dtos
 
     # Extract string fields using the shared utility
@@ -83,6 +117,7 @@ class ServiceNowService:
     async def resolve_device_name(self, cmdb_ci_value: str) -> str | None:
         """
         Resolve device name from cmdb_ci value (could be sys_id or name).
+        Cached for 15 minutes since device info is relatively stable.
         
         Args:
             cmdb_ci_value: Either a sys_id or device name
@@ -92,13 +127,28 @@ class ServiceNowService:
         """
         if not cmdb_ci_value:
             return None
+        
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:device_name:{cmdb_ci_value}"
+            cached_name = self.cache.get(cache_key)
+            if cached_name is not None:
+                logger.debug("Cache hit for device name", cmdb_ci=cmdb_ci_value)
+                return cached_name
             
         # If it looks like a sys_id (32 hex chars), fetch the computer name
         if len(cmdb_ci_value) == 32 and all(c in '0123456789abcdef' for c in cmdb_ci_value.lower()):
             async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
                 computer = await client.fetch_computer_by_sys_id(cmdb_ci_value)
                 if computer:
-                    return IncidentUtils.extract_str(computer.get("name")) or IncidentUtils.extract_str(computer.get("host_name"))
+                    device_name = IncidentUtils.extract_str(computer.get("name")) or IncidentUtils.extract_str(computer.get("host_name"))
+                    
+                    # Cache the result
+                    if self.cache and device_name:
+                        self.cache.set(cache_key, device_name, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
+                        logger.debug("Cached device name", cmdb_ci=cmdb_ci_value)
+                    
+                    return device_name
             return None
         
         # Otherwise, assume it's already a device name
@@ -107,6 +157,7 @@ class ServiceNowService:
     async def get_device_name_from_caller(self, caller_sys_id: str) -> str | None:
         """
         Get device name from caller by fetching user's devices from ServiceNow.
+        Cached for 15 minutes since device assignments are relatively stable.
         
         Args:
             caller_sys_id: The sys_id of the caller from incident
@@ -116,6 +167,14 @@ class ServiceNowService:
         """
         if not caller_sys_id:
             return None
+        
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:device_name_from_caller:{caller_sys_id}"
+            cached_device_name = self.cache.get(cache_key)
+            if cached_device_name is not None:
+                logger.debug("Cache hit for device name from caller", caller_sys_id=caller_sys_id)
+                return cached_device_name
         
         logger.info("Fetching devices from ServiceNow for caller", caller_sys_id=caller_sys_id)
         
@@ -130,6 +189,11 @@ class ServiceNowService:
         first_device = devices[0]
         device_name = first_device.name
         logger.info("Found device from ServiceNow", device_name=device_name, caller_sys_id=caller_sys_id)
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, device_name, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
+            logger.debug("Cached device name from caller", caller_sys_id=caller_sys_id)
         
         return device_name
     
@@ -180,6 +244,7 @@ class ServiceNowService:
     async def fetch_incidents_by_user(self, user_name: str) -> List[IncidentDTO]:
         """
         Retrieves up to 50 active incidents raised by the specified user.
+        Cached for 5 minutes since incident lists change frequently.
 
         Args:
             caller_sys_id (str): The `sys_id` of the user.
@@ -187,7 +252,15 @@ class ServiceNowService:
         Returns:
             dict: The raw API response containing active incident records raised by the user.
         """
-        logger.debug("Connecting to ServiceNow", base_url=self.base_url, sn_username=self.sn_username)
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:incidents_by_user:{user_name}"
+            cached_incidents = self.cache.get(cache_key)
+            if cached_incidents is not None:
+                logger.debug("Cache hit for incidents by user", user_name=user_name)
+                return cached_incidents
+        
+        logger.debug("Connecting to ServiceNow", instance_url=self.base_url)
 
         async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
             raw = await client.fetch_incidents_by_user(user_name)
@@ -196,11 +269,18 @@ class ServiceNowService:
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
         # sort by openedAt (newest first)
         dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_INCIDENT)
+            logger.debug("Cached incidents by user", user_name=user_name, count=len(dtos))
+        
         return dtos
     
     async def fetch_incidents_by_device(self, device_name: str) -> List[IncidentDTO]:
         """
         Retrieve incidents related to a specific device.
+        Cached for 5 minutes since incident lists change frequently.
 
         Args:
             device_name (str): The name of the device.
@@ -208,7 +288,15 @@ class ServiceNowService:
         Returns:
             dict: A dictionary containing incident information.
         """
-        logger.debug("Connecting to ServiceNow", base_url=self.base_url, sn_username=self.sn_username)
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:incidents_by_device:{device_name}"
+            cached_incidents = self.cache.get(cache_key)
+            if cached_incidents is not None:
+                logger.debug("Cache hit for incidents by device", device_name=device_name)
+                return cached_incidents
+        
+        logger.debug("Connecting to ServiceNow", instance_url=self.base_url)
 
         async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
             raw = await client.fetch_incidents_by_device(device_name)
@@ -217,11 +305,18 @@ class ServiceNowService:
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
         # sort by openedAt (newest first)
         dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_INCIDENT)
+            logger.debug("Cached incidents by device", device_name=device_name, count=len(dtos))
+        
         return dtos
         
     async def fetch_incident_details(self, incident_number: str) -> Optional[IncidentDTO]:
         """
         Retrieve details of a specific incident.
+        Cached for 5 minutes since incident details change frequently.
 
         Args:
             incident_number (str): The number of the incident.
@@ -229,15 +324,31 @@ class ServiceNowService:
         Returns:
             Optional[IncidentDTO]: The incident details as an IncidentDTO, or None if not found.
         """
-        logger.debug("Connecting to ServiceNow", base_url=self.base_url, sn_username=self.sn_username)
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:incident_details:{incident_number}"
+            cached_incident = self.cache.get(cache_key)
+            if cached_incident is not None:
+                logger.debug("Cache hit for incident details", incident_number=incident_number)
+                return cached_incident
+        
+        logger.debug("Connecting to ServiceNow", instance_url=self.base_url)
 
         async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
             raw = await client.fetch_incident_details(incident_number)
 
         if not raw:
             return None
+        
         # Client returns the incident dict directly (not wrapped in 'result')
-        return self._map_incident_to_dto(raw)
+        incident_dto = self._map_incident_to_dto(raw)
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, incident_dto, ttl_seconds=self.settings.CACHE_TTL_INCIDENT)
+            logger.debug("Cached incident details", incident_number=incident_number)
+        
+        return incident_dto
 
     def _map_computer_to_dto(self, rec: dict) -> ComputerDTO:
         """Map a ServiceNow computer record to ComputerDTO."""
@@ -256,6 +367,7 @@ class ServiceNowService:
     async def fetch_devices_by_user(self, user_sys_id: str) -> List[ComputerDTO]:
         """
         Retrieves devices (computers) assigned to a specific user.
+        Cached for 15 minutes since device assignments are relatively stable.
 
         Args:
             user_sys_id (str): The sys_id of the user.
@@ -263,6 +375,14 @@ class ServiceNowService:
         Returns:
             List[ComputerDTO]: List of computers assigned to the user.
         """
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:devices_by_user:{user_sys_id}"
+            cached_devices = self.cache.get(cache_key)
+            if cached_devices is not None:
+                logger.debug("Cache hit for devices by user", user_sys_id=user_sys_id)
+                return cached_devices
+        
         logger.debug("Fetching devices for user", user_sys_id=user_sys_id)
 
         # Build query parameters
@@ -279,7 +399,14 @@ class ServiceNowService:
             response = await client.get(endpoint, params=params)
 
         results = response.get("result", [])
-        return [self._map_computer_to_dto(rec) for rec in results]
+        devices = [self._map_computer_to_dto(rec) for rec in results]
+        
+        # Cache the result
+        if self.cache:
+            self.cache.set(cache_key, devices, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
+            logger.debug("Cached devices by user", user_sys_id=user_sys_id, count=len(devices))
+        
+        return devices
 
     def _map_knowledge_article_to_dto(self, rec: dict, score: Optional[float] = None) -> KnowledgeArticleDTO:
         """Map a ServiceNow knowledge article record to KnowledgeArticleDTO.
@@ -344,6 +471,7 @@ class ServiceNowService:
     ) -> List[KnowledgeArticleDTO]:
         """
         Search for knowledge articles matching the query.
+        Cached for 15 minutes since knowledge articles don't change frequently.
 
         Args:
             query (str): Search text (e.g., incident short description)
@@ -355,6 +483,16 @@ class ServiceNowService:
             List[KnowledgeArticleDTO]: List of matching knowledge articles, 
                                        sorted by relevance or view count.
         """
+        # Check cache first
+        if self.cache:
+            # Use CACHE_TTL_KNOWLEDGE if available, otherwise 900 seconds (15 minutes)
+            cache_ttl = getattr(self.settings, 'CACHE_TTL_KNOWLEDGE', 900)
+            cache_key = f"sn:knowledge:{query}:{limit}:{use_search_api}"
+            cached_articles = self.cache.get(cache_key)
+            if cached_articles is not None:
+                logger.debug("Cache hit for knowledge articles", query=query[:50])
+                return cached_articles
+        
         logger.debug("Searching knowledge articles", query=query, use_search_api=use_search_api)
 
         async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
@@ -431,6 +569,13 @@ class ServiceNowService:
                             filtered=len(filtered_articles),
                             threshold=50)
                 
+                # Cache the result
+                if self.cache:
+                    cache_ttl = getattr(self.settings, 'CACHE_TTL_KNOWLEDGE', 900)
+                    cache_key = f"sn:knowledge:{query}:{limit}:{use_search_api}"
+                    self.cache.set(cache_key, filtered_articles, ttl_seconds=cache_ttl)
+                    logger.debug("Cached knowledge articles", query=query[:50], count=len(filtered_articles))
+                
                 return filtered_articles
 
     async def search_knowledge_articles_for_incident(
@@ -441,6 +586,7 @@ class ServiceNowService:
         """
         Search for knowledge articles relevant to a specific incident.
         Uses incident's short description and category for contextual search.
+        Cached for 15 minutes since knowledge articles don't change frequently.
 
         Args:
             incident_number (str): The incident number
@@ -449,6 +595,14 @@ class ServiceNowService:
         Returns:
             List[KnowledgeArticleDTO]: Relevant knowledge articles sorted by relevance.
         """
+        # Check cache first
+        if self.cache:
+            cache_key = f"sn:knowledge_incident:{incident_number}:{limit}"
+            cached_articles = self.cache.get(cache_key)
+            if cached_articles is not None:
+                logger.debug("Cache hit for knowledge articles for incident", incident_number=incident_number)
+                return cached_articles
+        
         logger.debug("Searching KB articles for incident", incident_number=incident_number)
 
         # First, get incident details
@@ -465,7 +619,16 @@ class ServiceNowService:
             return []
 
         # Search using the incident description (Table API is more widely supported)
-        return await self.search_knowledge_articles(query, limit=limit, use_search_api=False)
+        articles = await self.search_knowledge_articles(query, limit=limit, use_search_api=False)
+        
+        # Cache the result
+        if self.cache:
+            cache_ttl = getattr(self.settings, 'CACHE_TTL_KNOWLEDGE', 900)
+            cache_key = f"sn:knowledge_incident:{incident_number}:{limit}"
+            self.cache.set(cache_key, articles, ttl_seconds=cache_ttl)
+            logger.debug("Cached knowledge articles for incident", incident_number=incident_number, count=len(articles))
+        
+        return articles
 
     # Sorting and parsing helpers moved to `app.utils.incident_utils.IncidentUtils` for reuse
         

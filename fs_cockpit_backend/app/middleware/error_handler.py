@@ -13,6 +13,8 @@ from app.middleware.request_id import get_request_id as _get_request_id
 
 from app.exceptions.custom_exceptions import (
     ExternalServiceError,
+    ServiceTimeoutError,
+    ServiceConnectionError,
     CredentialError,
     ConfigurationError,
     CircuitBreakerOpenError,
@@ -53,6 +55,26 @@ class GlobalErrorHandlerMiddleware(BaseHTTPMiddleware):
         )
         try:
             return await call_next(request)
+        except ServiceTimeoutError as exc:
+            body = {
+                "success": False,
+                "message": exc.message,
+                "data": {"timeout_seconds": exc.timeout_seconds, "operation": exc.operation},
+                "timestamp": _now_iso(),
+                "request_id": request_id,
+            }
+            logger.error("timeout.error", service=exc.service, timeout=exc.timeout_seconds, request_id=request_id)
+            return JSONResponse(status_code=504, content=body)
+        except ServiceConnectionError as exc:
+            body = {
+                "success": False,
+                "message": exc.message,
+                "data": {"url": exc.url},
+                "timestamp": _now_iso(),
+                "request_id": request_id,
+            }
+            logger.error("connection.error", service=exc.service, url=exc.url, request_id=request_id, details=exc.details)
+            return JSONResponse(status_code=503, content=body)
         except ExternalServiceError as exc:
             status = exc.status_code or 502
             body = {

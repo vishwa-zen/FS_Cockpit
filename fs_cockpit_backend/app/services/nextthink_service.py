@@ -8,6 +8,7 @@ import structlog
 from app.clients.nextthink_client import NextThinkClient
 from app.config.settings import get_settings
 from app.schemas.remote_action import RemoteActionDTO, RemoteActionExecuteRequest
+from app.cache.memory_cache import get_cache
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -28,6 +29,7 @@ class NextThinkService:
         self.password = self.settings.NEXTTHINK_PASWORD
         self.grant_type = self.settings.NEXTTHINK_GRANT_TYPE
         self.scope = self.settings.NEXTTHINK_SCOPE
+        self.cache = get_cache() if self.settings.CACHE_ENABLED else None
 
     def _apply_filters(
         self,
@@ -153,6 +155,7 @@ class NextThinkService:
     ) -> List[RemoteActionDTO]:
         """
         Fetch remote actions from NextThink with optional filtering.
+        Cached for 10 minutes since remote actions don't change frequently.
 
         Args:
             device_name (str): The device name to query
@@ -164,6 +167,15 @@ class NextThinkService:
         Returns:
             List[RemoteActionDTO]: List of remote actions
         """
+        # Build cache key including all parameters
+        if self.cache:
+            status_str = ",".join(sorted(status_filter)) if status_filter else "all"
+            cache_key = f"nt:remote_actions:{device_name}:{query_type}:{status_str}:{days}:{limit}"
+            cached_actions = self.cache.get(cache_key)
+            if cached_actions is not None:
+                logger.debug("Cache hit for remote actions", device_name=device_name)
+                return cached_actions
+        
         logger.debug("Connecting to NextThink API", api_url=self.api_base_url)
 
         async with NextThinkClient(
@@ -200,6 +212,11 @@ class NextThinkService:
         
         # Apply filters
         filtered_dtos = self._apply_filters(dtos, status_filter, days, limit)
+        
+        # Cache the filtered result
+        if self.cache:
+            self.cache.set(cache_key, filtered_dtos, ttl_seconds=self.settings.CACHE_TTL_REMOTE_ACTION)
+            logger.debug("Cached remote actions", device_name=device_name, count=len(filtered_dtos))
         
         logger.debug("Filtered actions", original_count=len(dtos), filtered_count=len(filtered_dtos))
         return filtered_dtos
@@ -403,11 +420,11 @@ class NextThinkService:
             category=incident.priority
         )
         
-        # Fetch all remote actions for the device (last 30 days)
+        # Fetch all remote actions for the device (last 7 days for better performance)
         all_actions = await self.get_remote_actions(
             device_name=device_name,
             query_type="detailed",
-            days=30
+            days=self.settings.NEXTTHINK_DEFAULT_DAYS
         )
         
         if not all_actions:

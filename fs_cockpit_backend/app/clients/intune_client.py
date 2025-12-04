@@ -33,6 +33,10 @@ class IntuneClient(BaseClient):
         self.token_expiry: Optional[datetime] = None
         self.client = None
         
+        # Get settings for connection pool configuration
+        from app.config.settings import get_settings
+        self.settings = get_settings()
+        
         # Initialize with Graph API base URL for API calls
         super().__init__(graph_base_url, timeout)
     
@@ -55,19 +59,25 @@ class IntuneClient(BaseClient):
         }
         
         try:
-            async with httpx.AsyncClient() as client:
+            # Use optimized client for token acquisition
+            async with httpx.AsyncClient(
+                limits=httpx.Limits(
+                    max_connections=self.settings.HTTP_POOL_MAX_CONNECTIONS,
+                    max_keepalive_connections=self.settings.HTTP_POOL_MAX_KEEPALIVE
+                )
+            ) as client:
                 response = await client.post(token_url, data=data)
                 response.raise_for_status()
                 token_data = response.json()
                 self.access_token = token_data.get("access_token")
-                
-                # Cache token with expiry (Microsoft tokens typically expire in 3600 seconds)
-                # Set expiry to 5 minutes before actual expiry for safety margin
-                expires_in = token_data.get("expires_in", 3600)
-                self.token_expiry = datetime.now() + timedelta(seconds=expires_in - 300)
-                
-                logger.debug("Successfully obtained access token", expires_in=expires_in)
-                return self.access_token
+            
+            # Cache token with expiry (Microsoft tokens typically expire in 3600 seconds)
+            # Set expiry to 5 minutes before actual expiry for safety margin
+            expires_in = token_data.get("expires_in", 3600)
+            self.token_expiry = datetime.now() + timedelta(seconds=expires_in - 300)
+            
+            logger.debug("Successfully obtained access token", expires_in=expires_in)
+            return self.access_token
         except httpx.HTTPError as e:
             logger.error("Failed to obtain access token", error=str(e))
             resp = getattr(e, "response", None)
@@ -131,9 +141,10 @@ class IntuneClient(BaseClient):
     async def authenticate(self) -> Dict[str, Any]:
         """
         Authenticate with Microsoft Graph API and return token info.
+        WARNING: Does not return actual token for security reasons.
         
         Returns:
-            dict: Authentication status and details
+            dict: Authentication status and details (token excluded)
         """
         try:
             token = await self._get_access_token()
@@ -143,7 +154,7 @@ class IntuneClient(BaseClient):
                 "tenant_id": self.tenant_id,
                 "client_id": self.client_id,
                 "token_acquired": bool(token),
-                "access_token": token
+                "message": "Successfully authenticated with Microsoft Graph API"
             }
         except ExternalServiceError as e:
             logger.error("Intune authentication failed", error=str(e))
@@ -155,17 +166,35 @@ class IntuneClient(BaseClient):
             }
     
     async def __aenter__(self):
-        """Set up the client with authentication."""
+        """Set up the client with authentication and connection pooling."""
         token = await self._get_access_token()
         self.auth_headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
+        
+        # Create client with optimized connection pool
+        limits = httpx.Limits(
+            max_connections=self.settings.HTTP_POOL_MAX_CONNECTIONS,
+            max_keepalive_connections=self.settings.HTTP_POOL_MAX_KEEPALIVE,
+            keepalive_expiry=self.settings.HTTP_POOL_KEEPALIVE_EXPIRY
+        )
+        
+        # Try to enable HTTP/2
+        enable_http2 = getattr(self.settings, 'HTTP_ENABLE_HTTP2', True)
+        if enable_http2:
+            try:
+                import h2  # noqa
+            except ImportError:
+                enable_http2 = False
+        
         self.client = httpx.AsyncClient(
             base_url=self.graph_base_url,
             timeout=self.timeout,
             headers=self.auth_headers,
             follow_redirects=True,
+            http2=enable_http2,
+            limits=limits
         )
         return self
     

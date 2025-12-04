@@ -964,11 +964,11 @@ export const remoteActionsAPI = {
     } catch (error: any) {
       logger.error("Failed to fetch remote actions", error);
 
-      let errorMessage = "Unable to retrieve recommended actions";
+      let errorMessage = "Actions temporarily unavailable";
       if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-        errorMessage = "Request timeout - please try again";
+        errorMessage = "Actions temporarily unavailable";
       } else if (error.code === "ERR_NETWORK" || !error.response) {
-        errorMessage = "Actions service temporarily unavailable";
+        errorMessage = "Actions temporarily unavailable";
       } else if (error.response?.status === 404) {
         errorMessage = "No recommendations found for this incident";
       }
@@ -1020,15 +1020,31 @@ export const deviceAPI = {
           message: response.data.message,
         };
       }
+      // API succeeded but no devices found - not an error, just no data
+      if (response.data.success && response.data.data.devices.length === 0) {
+        return {
+          data: null,
+          success: false,
+          message: "Device information not available for this incident",
+        };
+      }
       throw new Error(
         response.data.message || "Failed to fetch device details"
       );
     } catch (error: any) {
       logger.error("Failed to fetch device details", error);
+      // Check if this is a network error or API error
+      if (error.code === "ERR_NETWORK" || !error.response) {
+        return {
+          data: null,
+          success: false,
+          message: "Device details temporarily unavailable",
+        };
+      }
       return {
         data: null,
         success: false,
-        message: error?.message || "API error",
+        message: "Device information not available for this incident",
       };
     }
   },
@@ -1075,11 +1091,11 @@ export const deviceAPI = {
     } catch (error: any) {
       logger.error("Failed to orchestrate device details fetch", error);
 
-      let errorMessage = "Unable to retrieve device information";
+      let errorMessage = "Device details temporarily unavailable";
       if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-        errorMessage = "Request timeout - please try again";
+        errorMessage = "Device details temporarily unavailable";
       } else if (error.code === "ERR_NETWORK" || !error.response) {
-        errorMessage = "Device service temporarily unavailable";
+        errorMessage = "Device details temporarily unavailable";
       }
 
       return {

@@ -50,6 +50,26 @@ class Settings(BaseSettings):
     
     # Http Configuration
     HTTP_TIMEOUT_SECONDS: int = 30
+    HTTP_POOL_MAX_CONNECTIONS: int = 200
+    HTTP_POOL_MAX_KEEPALIVE: int = 100
+    HTTP_POOL_KEEPALIVE_EXPIRY: float = 30.0
+    HTTP_ENABLE_HTTP2: bool = True  # Enable HTTP/2 if h2 package available
+    
+    # NextThink Query Optimization
+    NEXTTHINK_DEFAULT_DAYS: int = 7  # Reduced from 30 for better performance
+    
+    # Cache Configuration
+    CACHE_ENABLED: bool = True  # Enable/disable caching globally
+    CACHE_MAX_SIZE: int = 10000  # Maximum number of cache entries
+    CACHE_DEFAULT_TTL: int = 300  # Default TTL in seconds (5 minutes)
+    CACHE_CLEANUP_INTERVAL: int = 300  # Cleanup interval in seconds (5 minutes)
+    
+    # Cache TTL for different data types
+    CACHE_TTL_DEVICE: int = 900  # 15 minutes for device info
+    CACHE_TTL_USER: int = 3600  # 1 hour for user info
+    CACHE_TTL_INCIDENT: int = 300  # 5 minutes for incident data
+    CACHE_TTL_REMOTE_ACTION: int = 600  # 10 minutes for remote actions
+    
     # CORS defaults
     ALLOWED_ORIGINS: List[str] = ["*"]
     ALLOW_CREDENTIALS: bool = True

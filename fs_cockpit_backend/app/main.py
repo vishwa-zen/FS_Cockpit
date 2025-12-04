@@ -15,6 +15,7 @@ import structlog
 
 from app.api.routes import intune, servicenow, nextthink
 from app.api.routes import health_metrics
+from app.api.routes import cache as cache_routes
 from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.request_id import RequestIDMiddleware, get_request_id
 from app.middleware.error_handler import GlobalErrorHandlerMiddleware
@@ -59,8 +60,9 @@ class FSCockpitApplication:
         self.title = title or self.settings.TITLE
         self._app: Optional[FastAPI] = None
         self._create_app()
-        # register routes separately from app creation
+        # Register routes separately from app creation
         self._register_health()
+        self._register_shutdown()
 
     def _create_app(self) -> None:
         """Builds the FastAPI instance and configures middleware/routers."""
@@ -104,6 +106,7 @@ class FSCockpitApplication:
         self._app.include_router(intune.router)
         self._app.include_router(nextthink.router)
         self._app.include_router(health_metrics.router)
+        self._app.include_router(cache_routes.router)
         # Debug: record the order of user-registered middleware for visibility
         try:
             mw_names = [mw.cls.__name__ for mw in self._app.user_middleware]
@@ -137,6 +140,41 @@ class FSCockpitApplication:
                 # logging should never prevent the endpoint from replying
                 pass
             return {"status": "ok"}
+    
+    def _register_shutdown(self) -> None:
+        """Register shutdown event to cleanup connection pools and cache."""
+        assert self._app is not None
+        
+        @self._app.on_event("shutdown")
+        async def shutdown_event():
+            """Cleanup resources on application shutdown."""
+            from app.clients.base_cleint import BaseClient
+            await BaseClient.close_shared_client()
+            self.logger.info("Application shutdown complete")
+        
+        @self._app.on_event("startup")
+        async def startup_event():
+            """Initialize background tasks on startup."""
+            import asyncio
+            from app.cache.memory_cache import get_cache
+            
+            async def cleanup_cache_periodically():
+                """Background task to cleanup expired cache entries."""
+                while True:
+                    try:
+                        await asyncio.sleep(self.settings.CACHE_CLEANUP_INTERVAL)
+                        if self.settings.CACHE_ENABLED:
+                            cache = get_cache()
+                            removed = cache.cleanup_expired()
+                            if removed > 0:
+                                self.logger.info("Automatic cache cleanup", removed_entries=removed)
+                    except Exception as e:
+                        self.logger.error("Cache cleanup error", error=str(e))
+            
+            # Start background cleanup task
+            if self.settings.CACHE_ENABLED:
+                asyncio.create_task(cleanup_cache_periodically())
+                self.logger.info("Cache cleanup task started", interval_seconds=self.settings.CACHE_CLEANUP_INTERVAL)
 
     @property
     def app(self) -> FastAPI:

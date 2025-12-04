@@ -121,7 +121,8 @@ export const SystemStatusBar = () => {
     setIsExpanded(!isExpanded);
   };
 
-  const formatUptime = (percentage: number) => {
+  const formatUptime = (percentage?: number) => {
+    if (percentage === undefined || percentage === null) return "N/A";
     return `${percentage.toFixed(2)}%`;
   };
 
@@ -217,10 +218,10 @@ export const SystemStatusBar = () => {
                         <div className="flex justify-between">
                           <span>Total Checks:</span>
                           <span className="font-medium text-[#314157]">
-                            {serviceMetrics.total_checks}
+                            {serviceMetrics.total_checks ?? 0}
                           </span>
                         </div>
-                        {serviceMetrics.total_downtime_minutes > 0 && (
+                        {(serviceMetrics.total_downtime_minutes ?? 0) > 0 && (
                           <div className="flex justify-between">
                             <span>Downtime:</span>
                             <span className="font-medium text-[#dc2626]">
