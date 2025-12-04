@@ -38,15 +38,15 @@ class HealthMetricsTracker:
     """
     
     _instance = None
+    _initialized = False
     
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(HealthMetricsTracker, cls).__new__(cls)
-            cls._instance._initialized = False
         return cls._instance
     
     def __init__(self):
-        if hasattr(self, '_initialized') and self._initialized:
+        if self._initialized:
             return
         
         # Store last 1000 health checks per service (roughly 3-4 days at 5-min intervals)
@@ -71,7 +71,7 @@ class HealthMetricsTracker:
             "NextThink": None
         }
         
-        self._initialized = True
+        HealthMetricsTracker._initialized = True
         logger.info("HealthMetricsTracker initialized")
     
     def record_health_check(self, service: str, status: str, error: Optional[str] = None) -> None:
