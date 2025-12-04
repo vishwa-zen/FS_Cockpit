@@ -1,7 +1,7 @@
 import { useMsal } from "@azure/msal-react";
 import { ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { popupLoginRequest } from "../../../../config/msalConfig";
 import { Alert, AlertDescription } from "../../../../components/ui/alert";
 import { Button } from "../../../../components/ui/button";
@@ -29,10 +29,14 @@ const features = [
 
 export const SignInSection = (): JSX.Element => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { instance, accounts } = useMsal();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Get the intended destination from location state
+  const from = (location.state as any)?.from || "/home";
 
   // Redirect to home if user is already authenticated
   useEffect(() => {
@@ -49,14 +53,15 @@ export const SignInSection = (): JSX.Element => {
       hasAccount: !!hasAccount,
       isRedirecting,
       isLoading,
+      intendedDestination: from,
     });
 
     if (accounts.length > 0 || (hasToken && hasAccount)) {
-      console.log("[SignIn] User already authenticated, redirecting to home");
+      console.log("[SignIn] User already authenticated, redirecting to:", from);
       setIsRedirecting(true);
-      navigate("/home", { replace: true });
+      navigate(from, { replace: true });
     }
-  }, [accounts, navigate, isRedirecting, isLoading]);
+  }, [accounts, navigate, isRedirecting, isLoading, from]);
   const handleSignIn = async () => {
     setIsLoading(true);
     setError(null);
@@ -130,10 +135,10 @@ export const SignInSection = (): JSX.Element => {
       );
       console.log("[SignIn] 🔔 Dispatched loginComplete event");
 
-      // Set redirecting flag and navigate to home
-      console.log("[SignIn] Navigating to /home");
+      // Set redirecting flag and navigate to intended destination
+      console.log("[SignIn] Navigating to:", from);
       setIsRedirecting(true);
-      navigate("/home", { replace: true });
+      navigate(from, { replace: true });
     } catch (err: any) {
       console.error("Login popup failed:", err);
       console.error("Error details:", {
