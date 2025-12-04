@@ -32,14 +32,31 @@ export const SignInSection = (): JSX.Element => {
   const { instance, accounts } = useMsal();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Redirect to home if user is already authenticated
   useEffect(() => {
-    if (accounts.length > 0) {
-      navigate("/home");
-    }
-  }, [accounts, navigate]);
+    // Don't check if already redirecting or loading
+    if (isRedirecting || isLoading) return;
 
+    // Check both MSAL accounts and localStorage for authentication
+    const hasToken = localStorage.getItem("msal.token");
+    const hasAccount = localStorage.getItem("msal.account");
+
+    console.log("[SignIn] Auth check:", {
+      msalAccounts: accounts.length,
+      hasToken: !!hasToken,
+      hasAccount: !!hasAccount,
+      isRedirecting,
+      isLoading,
+    });
+
+    if (accounts.length > 0 || (hasToken && hasAccount)) {
+      console.log("[SignIn] User already authenticated, redirecting to home");
+      setIsRedirecting(true);
+      navigate("/home", { replace: true });
+    }
+  }, [accounts, navigate, isRedirecting, isLoading]);
   const handleSignIn = async () => {
     setIsLoading(true);
     setError(null);
@@ -48,20 +65,38 @@ export const SignInSection = (): JSX.Element => {
       console.log("Initiating login popup...");
       console.log("Login request:", popupLoginRequest);
 
-      // Use popup for authentication
+      // Use popup for authentication - MSAL will handle the popup window
       const response = await instance.loginPopup(popupLoginRequest);
 
       console.log("Login successful:", response);
       console.log("Login response - full response:", {
         account: response.account,
-        idToken: response.idToken,
-        accessToken: response.accessToken ? "present" : "missing",
+        idToken: response.idToken
+          ? "present (length: " + response.idToken.length + ")"
+          : "missing",
+        accessToken: response.accessToken
+          ? "present (length: " + response.accessToken.length + ")"
+          : "missing",
         idTokenClaims: response.idTokenClaims,
       });
 
-      // Store token and account
+      // Store both tokens - backend might need ID token instead of access token
+      if (response.idToken) {
+        // Store ID token as the main token (most backends expect this for B2C)
+        localStorage.setItem("msal.token", response.idToken);
+        localStorage.setItem("msal.idToken", response.idToken);
+        console.log(
+          "[SignIn] ✅ ID Token stored as main token, length:",
+          response.idToken.length
+        );
+      }
+
       if (response.accessToken) {
-        localStorage.setItem("msal.token", response.accessToken);
+        localStorage.setItem("msal.accessToken", response.accessToken);
+        console.log(
+          "[SignIn] ✅ Access Token stored separately, length:",
+          response.accessToken.length
+        );
       }
 
       if (response.account) {
@@ -78,10 +113,27 @@ export const SignInSection = (): JSX.Element => {
         instance.setActiveAccount(response.account);
 
         console.log("[SignIn] Stored account data:", accountWithClaims);
+        console.log("[SignIn] Authentication complete, navigating to home");
+
+        // Store login timestamp to help detect immediate 401s after login
+        sessionStorage.setItem("last_login_time", Date.now().toString());
       }
 
-      // Navigate to home
-      navigate("/home");
+      // Small delay to ensure localStorage is written
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Dispatch custom event to notify app that login completed
+      window.dispatchEvent(
+        new CustomEvent("loginComplete", {
+          detail: { timestamp: Date.now() },
+        })
+      );
+      console.log("[SignIn] 🔔 Dispatched loginComplete event");
+
+      // Set redirecting flag and navigate to home
+      console.log("[SignIn] Navigating to /home");
+      setIsRedirecting(true);
+      navigate("/home", { replace: true });
     } catch (err: any) {
       console.error("Login popup failed:", err);
       console.error("Error details:", {
@@ -91,7 +143,10 @@ export const SignInSection = (): JSX.Element => {
       });
 
       // Check if user cancelled
-      if (err?.errorCode === "user_cancelled" || err?.message?.includes("user_cancelled")) {
+      if (
+        err?.errorCode === "user_cancelled" ||
+        err?.message?.includes("user_cancelled")
+      ) {
         setError("Login cancelled. Please try again.");
       } else {
         setError(`Login failed: ${err?.message || "Unknown error"}`);

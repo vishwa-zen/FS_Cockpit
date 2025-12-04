@@ -20,6 +20,7 @@ from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.request_id import RequestIDMiddleware, get_request_id
 from app.middleware.error_handler import GlobalErrorHandlerMiddleware
 from app.middleware.response_wrapper import ResponseWrapperMiddleware
+from app.middleware.auth import AzureADAuthMiddleware
 from app.config.settings import get_settings, Settings
 from app.logger.log import configure_logging
 
@@ -83,6 +84,11 @@ class FSCockpitApplication:
         # request-id middleware last.
         self._app.add_middleware(GlobalErrorHandlerMiddleware)
         self._app.add_middleware(ResponseWrapperMiddleware)
+        
+        # Add Azure AD authentication middleware (before request-id so it can access request_id)
+        # This middleware is only active when AZURE_AD_ENABLED=True
+        self._app.add_middleware(AzureADAuthMiddleware)
+        
         # Request-id middleware should run early so other middleware/handlers
         # can access `request.state.request_id`.
         self._app.add_middleware(RequestIDMiddleware)

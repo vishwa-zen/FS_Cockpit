@@ -62,6 +62,11 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
       const response = await ticketsAPI.getMyTickets();
       if (response.success && response.data && Array.isArray(response.data)) {
         setMyTickets(response.data as Ticket[]);
+        console.log(
+          "[TicketsContext] ✅ Fetched",
+          response.data.length,
+          "tickets"
+        );
       } else {
         setMyTickets([]);
         setError("No tickets available");
@@ -116,7 +121,38 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    fetchTickets();
+    // Only fetch tickets if user is authenticated (has token)
+    const token = localStorage.getItem("msal.token");
+    const account = localStorage.getItem("msal.account");
+
+    if (token && account) {
+      console.log("[TicketsContext] User authenticated, fetching tickets");
+      fetchTickets();
+    } else {
+      console.log(
+        "[TicketsContext] No auth token found, skipping ticket fetch"
+      );
+      setIsLoading(false);
+    }
+
+    // Listen for login complete event
+    const handleLoginComplete = () => {
+      console.log(
+        "[TicketsContext] 🔔 Login complete event received, fetching tickets"
+      );
+      const newToken = localStorage.getItem("msal.token");
+      const newAccount = localStorage.getItem("msal.account");
+
+      if (newToken && newAccount) {
+        fetchTickets();
+      }
+    };
+
+    window.addEventListener("loginComplete", handleLoginComplete);
+
+    return () => {
+      window.removeEventListener("loginComplete", handleLoginComplete);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

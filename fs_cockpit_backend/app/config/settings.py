@@ -2,7 +2,7 @@
     Application configuration settings for FSCOCKPIT.
 """
 from functools import lru_cache
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -57,6 +57,51 @@ class Settings(BaseSettings):
     
     # NextThink Query Optimization
     NEXTTHINK_DEFAULT_DAYS: int = 7  # Reduced from 30 for better performance
+    
+    # Azure AD Authentication Configuration
+    AZURE_AD_ENABLED: bool = Field(default=False, env="AZURE_AD_ENABLED")  # Disable by default
+    AZURE_AD_TENANT_ID: str = Field(default="e168d6cf-6597-4aeb-ae6f-111c78a48f78", env="AZURE_AD_TENANT_ID")
+    AZURE_AD_CLIENT_ID: str = Field(default="64db8b2f-22ad-4ded-86b9-c91a43623f78", env="AZURE_AD_CLIENT_ID")
+    
+    # Azure AD B2C specific settings
+    AZURE_AD_B2C_DOMAIN: Optional[str] = Field(default=None, env="AZURE_AD_B2C_DOMAIN")  # e.g., "zenpoc.b2clogin.com"
+    AZURE_AD_B2C_POLICY: Optional[str] = Field(default=None, env="AZURE_AD_B2C_POLICY")  # e.g., "B2C_1_NTT_SIGNUP_SIGNIN"
+    AZURE_AD_VERIFY_SSL: bool = Field(default=True, env="AZURE_AD_VERIFY_SSL")  # Set to false to disable SSL verification (dev only)
+    
+    # Derived Azure AD URLs (can be overridden via env vars)
+    @property
+    def AZURE_AD_ISSUER(self) -> str:
+        """Azure AD token issuer URL."""
+        if self.AZURE_AD_B2C_DOMAIN and self.AZURE_AD_B2C_POLICY:
+            # B2C issuer format
+            return f"https://{self.AZURE_AD_B2C_DOMAIN}/{self.AZURE_AD_TENANT_ID}/v2.0/"
+        else:
+            # Standard Azure AD issuer format
+            return f"https://sts.windows.net/{self.AZURE_AD_TENANT_ID}/"
+    
+    @property
+    def AZURE_AD_JWKS_URI(self) -> str:
+        """Azure AD public keys endpoint for token signature verification."""
+        if self.AZURE_AD_B2C_DOMAIN and self.AZURE_AD_B2C_POLICY:
+            # B2C JWKS endpoint
+            return f"https://{self.AZURE_AD_B2C_DOMAIN}/{self.AZURE_AD_TENANT_ID}/{self.AZURE_AD_B2C_POLICY}/discovery/v2.0/keys"
+        else:
+            # Standard Azure AD JWKS endpoint
+            return f"https://login.microsoftonline.com/{self.AZURE_AD_TENANT_ID}/discovery/v2.0/keys"
+    
+    @property
+    def AZURE_AD_AUDIENCE(self) -> str:
+        """Expected audience in the token (your backend client ID)."""
+        return self.AZURE_AD_CLIENT_ID
+    
+    # Optional: List of paths that don't require authentication
+    AUTH_EXCLUDED_PATHS: List[str] = [
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/favicon.ico"
+    ]
     
     # Cache Configuration
     CACHE_ENABLED: bool = True  # Enable/disable caching globally

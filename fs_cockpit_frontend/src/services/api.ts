@@ -100,6 +100,16 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem("msal.token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      logger.debug("Request with auth token", {
+        url: config.url,
+        method: config.method,
+        tokenPrefix: token.substring(0, 20) + "...",
+      });
+    } else {
+      logger.warn("No auth token found for request", {
+        url: config.url,
+        method: config.method,
+      });
     }
     return config;
   },
@@ -120,10 +130,44 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      logger.warn("Unauthorized request detected, clearing session");
-      localStorage.clear();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+      logger.error("❌ 401 UNAUTHORIZED - Token rejected by backend", {
+        url: error.config?.url,
+        method: error.config?.method,
+        hasAuthHeader: !!error.config?.headers?.Authorization,
+        tokenPrefix:
+          error.config?.headers?.Authorization?.substring(0, 30) + "...",
+        currentPath:
+          typeof window !== "undefined" ? window.location.pathname : "unknown",
+      });
+
+      // Check if we just logged in (within last 2 seconds)
+      const lastLoginTime = sessionStorage.getItem("last_login_time");
+      const now = Date.now();
+
+      if (lastLoginTime && now - parseInt(lastLoginTime) < 2000) {
+        logger.warn(
+          "⚠️ 401 occurred right after login - token may be invalid format"
+        );
+      }
+
+      // Only redirect if not already on login page to prevent refresh loop
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/login"
+      ) {
+        logger.error("🔄 Clearing session and redirecting to login in 500ms");
+
+        // Use a longer delay to allow debugging and prevent immediate redirect after login
+        setTimeout(() => {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.href = "/login";
+        }, 500);
+      } else if (typeof window !== "undefined") {
+        // Already on login page - just clear storage, don't redirect
+        logger.warn("Already on login page - clearing storage only");
+        localStorage.clear();
+        sessionStorage.clear();
       }
     }
     return Promise.reject(error);

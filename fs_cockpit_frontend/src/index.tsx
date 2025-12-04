@@ -9,6 +9,7 @@ import { SignInSection } from "./screens/Frame/sections/SignInSection";
 import { HomeSearchSection } from "./screens/Frame/sections/HomeSearchSection";
 import { IssueSearchSection } from "./screens/Frame/sections/IssueSearchSection";
 import { IssueDetailsSection } from "./screens/Frame/sections/IssueDetailsSection";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const msalInstance = new PublicClientApplication(msalConfig);
 
@@ -66,10 +67,38 @@ msalInstance
               <Routes>
                 <Route path="/" element={<Navigate to="/login" replace />} />
                 <Route path="/login" element={<SignInSection />} />
-                <Route path="/home" element={<HomeSearchSection />} />
-                <Route path="/home/:id" element={<HomeSearchSection />} />
-                <Route path="/search" element={<IssueSearchSection />} />
-                <Route path="/issue/:id" element={<IssueDetailsSection />} />
+                <Route
+                  path="/home"
+                  element={
+                    <ProtectedRoute>
+                      <HomeSearchSection />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/home/:id"
+                  element={
+                    <ProtectedRoute>
+                      <HomeSearchSection />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/search"
+                  element={
+                    <ProtectedRoute>
+                      <IssueSearchSection />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/issue/:id"
+                  element={
+                    <ProtectedRoute>
+                      <IssueDetailsSection />
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
             </BrowserRouter>
           </TicketsProvider>

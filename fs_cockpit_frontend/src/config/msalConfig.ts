@@ -35,10 +35,10 @@ export const msalConfig: Configuration = {
             console.error(message);
             return;
           case LogLevel.Info:
-            // console.info(message);
+            console.info(message);
             return;
           case LogLevel.Verbose:
-            // console.debug(message);
+            console.debug(message);
             return;
           case LogLevel.Warning:
             console.warn(message);
@@ -47,7 +47,7 @@ export const msalConfig: Configuration = {
             return;
         }
       },
-      logLevel: LogLevel.Warning,
+      logLevel: LogLevel.Info,
     },
   },
 };
@@ -65,11 +65,11 @@ export const loginRequest = {
  */
 export const popupLoginRequest = {
   scopes: ["openid", "profile", "email"],
-  prompt: "select_account",
+  prompt: "login",
   redirectUri:
     typeof window !== "undefined"
       ? window.location.origin
-      : "http://localhost:8000",
+      : "http://localhost:3000",
 };
 
 /**
