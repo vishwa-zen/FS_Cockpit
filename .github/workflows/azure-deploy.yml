@@ -96,7 +96,7 @@ jobs:
             [
             {
                 "name": "main",
-                "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.WEB_APP_NAME_BACKEND }}:${{ github.run_number }}",
+                "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME_BACKEND }}:${{ env.IMAGE_TAG }}",
                 "targetPort": 3000,
                 "isMain": true
               }
@@ -120,7 +120,7 @@ jobs:
             [
             {
                 "name": "main",
-                "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.WEB_APP_NAME_FRONTEND }}:${{ github.run_number }}",
+                "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ env.IMAGE_TAG }}",
                 "targetPort": 3000,
                 "isMain": true
               }
