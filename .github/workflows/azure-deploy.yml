@@ -97,7 +97,7 @@ jobs:
             {
                 "name": "main",
                 "image": "${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME_BACKEND }}:${{ env.IMAGE_TAG }}",
-                "targetPort": 3000,
+                "targetPort": 8000,
                 "isMain": true
               }
             ]
