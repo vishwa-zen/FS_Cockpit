@@ -783,10 +783,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
                   {/* Solution Points List */}
                   <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-2">
                     {solutionSummary.summary_points.map((point, index) => (
-                      <div
-                        key={index}
-                        className="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-200/50 hover:border-[#1347e5]/30 transition-all duration-200 group"
-                      >
+                      <div key={index} className="flex gap-3">
                         <div className="flex-shrink-0 w-2 h-2 rounded-full bg-gradient-to-br from-[#1347e5] to-[#0e3aa8] mt-2"></div>
                         <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-6 flex-1">
                           {point}

@@ -6,6 +6,7 @@ from typing import List, Optional
 import structlog
 from app.utils.incident_utils import IncidentUtils
 from app.clients.servicenow_client import ServiceNowClient
+from app.clients.google_ai_client import get_google_ai_client
 from app.config.settings import get_settings
 from app.schemas.incident import IncidentDTO
 from app.schemas.computer import ComputerDTO
@@ -809,14 +810,14 @@ class ServiceNowService:
                 logger.warning("Incident has no description for AI summary", incident_number=incident_number)
                 search_query = f"{incident_number} {incident.category or ''}"
             
-            summary_points = self._generate_ai_solution_points(search_query, incident)
+            summary_points, ai_source = await self._generate_ai_solution_points(search_query, incident)
             
-            logger.info("Solution summary from AI generation", incident_number=incident_number, points_count=len(summary_points))
+            logger.info("Solution summary from AI generation", incident_number=incident_number, points_count=len(summary_points), source=ai_source)
             
             result = {
                 "incident_number": incident_number,
                 "summary_points": summary_points,
-                "source": "ai_generated",
+                "source": ai_source,
                 "kb_articles_count": 0,
                 "total_kb_articles_used": 0,
                 "confidence": "medium",
@@ -843,108 +844,324 @@ class ServiceNowService:
                 "message": f"Unable to generate solution summary for incident {incident_number}"
             }
 
-    def _generate_ai_solution_points(self, query: str, incident) -> List[str]:
+    async def _generate_ai_solution_points(self, query: str, incident) -> tuple:
         """
-        Generate intelligent AI-powered solution points based on incident details.
-        Analyzes keywords and provides 5-6 specific, actionable steps.
+        Generate solution points using Google Gemini AI or stubbed responses.
+        Can toggle between real AI responses and template-based stubbed responses via env variable.
 
         Args:
             query (str): Search query (incident description)
-            incident: IncidentDTO object with category and other details
+            incident: IncidentDTO object with category, device details, and other information
 
         Returns:
-            List[str]: List of 5-6 suggested solution steps
+            Tuple[List[str], str]: (List of 6-8 solution steps, source_type)
+                - source_type: "GeminiAI" for real AI, "stubbed" for template-based responses
+
+        Raises:
+            Exception: If AI generation fails, returns fallback generic solutions
+        """
+        # Check if we should use real AI or stubbed responses
+        use_real_responses = self.settings.GOOGLE_AI_USE_REAL_RESPONSES
+        
+        if use_real_responses:
+            points, source = await self._generate_real_ai_solutions(query, incident)
+            return points, source
+        else:
+            points = self._generate_stubbed_solutions(query, incident)
+            return points, "stubbed"
+
+    async def _generate_real_ai_solutions(self, query: str, incident) -> tuple:
+        """
+        Generate real solutions using Google Gemini AI with comprehensive device details.
+        
+        Returns:
+            Tuple[List[str], str]: (solution_points, source)
+                - source: "GeminiAI" for successful AI generation, "stubbed" for fallback
+        """
+        try:
+            # Extract context from incident
+            device_name = None
+            category = None
+            device_details_str = ""
+            
+            if incident:
+                device_name = incident.deviceName if hasattr(incident, 'deviceName') else None
+                category = incident.category if hasattr(incident, 'category') else None
+            
+            # Step 1: If device_name is not available, try to get it from caller's devices
+            if not device_name and incident and hasattr(incident, 'callerId') and incident.callerId:
+                try:
+                    device_name = await self.get_device_name_from_caller(incident.callerId)
+                    logger.info(
+                        "Got device name from caller",
+                        caller_id=incident.callerId,
+                        device_name=device_name,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Could not get device from caller",
+                        caller_id=incident.callerId,
+                        error=str(e),
+                    )
+            
+            # Step 2: Fetch comprehensive device details from Intune if device_name is available
+            if device_name:
+                try:
+                    device_details_str = await self._get_device_details_from_intune(device_name)
+                    if device_details_str:
+                        logger.info(
+                            "Fetched device details from Intune for AI context",
+                            device_name=device_name,
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Could not fetch device details from Intune",
+                        device_name=device_name,
+                        error=str(e),
+                    )
+            
+            # Get Gemini AI client and generate solutions
+            ai_client = get_google_ai_client()
+            
+            logger.info(
+                "Requesting real AI-generated solutions from Gemini",
+                category=category,
+                device_name=device_name,
+                has_device_details=bool(device_details_str),
+            )
+            
+            points = await ai_client.generate_solution_points(
+                incident_description=query,
+                category=category,
+                device_name=device_name,
+                device_details=device_details_str,
+            )
+            
+            logger.info(
+                "Successfully generated real AI solutions",
+                count=len(points),
+                category=category,
+            )
+            
+            return points, "GeminiAI"
+
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                "Error generating real AI solutions, falling back to stubbed responses",
+                error=str(e),
+                query=query[:100] if query else None,
+            )
+            
+            # Fall back to stubbed responses on AI error
+            return self._generate_stubbed_solutions(query, incident), "stubbed"
+
+    async def _get_device_details_from_intune(self, device_name: str) -> str:
+        """
+        Fetch comprehensive device details from Intune and format them as a string for AI context.
+        Follows the existing pattern: ServiceNow devices → Intune device details.
+        
+        Args:
+            device_name (str): The name of the device (e.g., "CPC-jitin-0PY7D")
+            
+        Returns:
+            str: Formatted device details string with OS, compliance, management status, etc.
+        """
+        try:
+            from app.clients.intune_client import IntuneClient
+            
+            logger.debug("Fetching device details from Intune", device_name=device_name)
+            
+            # Create Intune client to fetch device details
+            intune_client = IntuneClient(
+                graph_base_url=self.settings.INTUNE_GRAPH_URL,
+                tenant_id=self.settings.INTUNE_TENANT_ID,
+                client_id=self.settings.INTUNE_CLIENT_ID,
+                client_secret=self.settings.INTUNE_CLIENT_SECRET,
+            )
+            
+            # Fetch device details by name from Intune
+            device_details = await intune_client.fetch_device_by_name(device_name)
+            
+            if not device_details:
+                logger.debug("No device found in Intune", device_name=device_name)
+                return ""
+            
+            # Build comprehensive device details string
+            details_parts = []
+            
+            # Basic info
+            if device_name:
+                details_parts.append(f"Computer: {device_name}")
+            
+            # Operating System
+            os_version = device_details.get("operatingSystem")
+            if os_version:
+                details_parts.append(f"OS: {os_version}")
+            
+            # OS Version details
+            os_version_detail = device_details.get("osVersion")
+            if os_version_detail:
+                details_parts.append(f"OS Version: {os_version_detail}")
+            
+            # Device compliance status
+            compliance = device_details.get("complianceState")
+            if compliance:
+                details_parts.append(f"Compliance: {compliance}")
+            
+            # Device management status
+            managed = device_details.get("managementAgent")
+            if managed:
+                details_parts.append(f"Managed By: {managed}")
+            
+            # Enrollment status
+            enrollment = device_details.get("enrollmentType")
+            if enrollment:
+                details_parts.append(f"Enrollment: {enrollment}")
+            
+            # Device model and manufacturer
+            model = device_details.get("model")
+            if model:
+                details_parts.append(f"Model: {model}")
+            
+            manufacturer = device_details.get("manufacturer")
+            if manufacturer:
+                details_parts.append(f"Manufacturer: {manufacturer}")
+            
+            # Serial number
+            serial = device_details.get("serialNumber")
+            if serial:
+                details_parts.append(f"Serial: {serial}")
+            
+            # Last sync time (indicates if device is active)
+            last_sync = device_details.get("lastSyncDateTime")
+            if last_sync:
+                details_parts.append(f"Last Sync: {last_sync}")
+            
+            logger.info(
+                "Successfully fetched device details from Intune",
+                device_name=device_name,
+                details_count=len(details_parts),
+            )
+            
+            return " | ".join(details_parts)
+        
+        except Exception as e:
+            logger.warning(
+                "Error fetching device details from Intune",
+                device_name=device_name,
+                error=str(e),
+            )
+            return ""
+
+    def _generate_stubbed_solutions(self, query: str, incident) -> List[str]:
+        """
+        Generate stubbed/template-based solution points for field technicians.
+        Used when real AI is disabled or as fallback when AI fails.
+        Mimics ServiceNow KB format with practical troubleshooting steps.
+
+        Args:
+            query (str): Search query (incident description)
+            incident: IncidentDTO object with category, device details
+
+        Returns:
+            List[str]: List of 6-8 template-based solution steps
         """
         points = []
         query_lower = query.lower()
         category = (incident.category or "").lower() if incident else ""
         
-        if any(kw in query_lower or kw in category for kw in ["error", "failed", "crash", "broken", "exception"]):
+        # Extract dynamic device context from incident - no hardcoding
+        device_context = ""
+        if incident:
+            device_name = incident.deviceName if hasattr(incident, 'deviceName') else None
+            if device_name:
+                device_context = f" [{device_name}]"
+        
+        if any(kw in query_lower or kw in category for kw in ["error", "failed", "crash", "broken", "exception", "install", "update", "software", "patch"]):
             points = [
-                "Review application error logs and event viewer for specific error codes and stack traces",
-                "Restart the affected application and verify the issue persists",
-                "Clear application cache, temporary files, and browser cache related to the service",
-                "Check if there are any pending software updates or patches available",
-                "Verify system resources (CPU, memory, disk) are not at critical levels",
-                "Check application compatibility with current OS version and installed drivers"
+                f"Run installer as Administrator — Right-click installer.exe → 'Run as administrator'{device_context}",
+                "Clear Temp folders — Delete %TEMP% and %TMP% content, then retry installation",
+                "Temporarily disable antivirus/security software (if allowed by policy) — Re-enable after installation completes",
+                "Verify prerequisites — Ensure required .NET Framework and Visual C++ Redistributables installed per vendor documentation → reboot if needed",
+                "Check disk space — Ensure sufficient free disk space on installation target drive (check vendor minimum requirements)",
+                "Re-download installer from official vendor portal or trusted network share — Verify file hash/checksum if provided by vendor",
+                "Try compatibility mode (if OS version mismatch) — Right-click installer → Properties → Compatibility → try alternate Windows version",
+                "Review installer logs — Check installer log file in installation directory or %LocalAppData%\\Temp for specific error codes and details"
             ]
         
-        elif any(kw in query_lower or kw in category for kw in ["network", "connection", "internet", "wifi", "connectivity", "dns"]):
+        elif any(kw in query_lower or kw in category for kw in ["network", "connection", "internet", "download", "timeout", "connectivity", "dns"]):
             points = [
-                "Verify network connectivity: ping gateway and DNS servers to ensure connectivity",
-                "Check and reconfigure DNS settings, try alternate DNS servers (e.g., 8.8.8.8)",
-                "Restart network adapters and modem/router to refresh connection",
-                "Review firewall rules and proxy settings that may be blocking traffic",
-                "Check network adapter drivers are up to date and properly configured",
-                "Test connectivity using different network interfaces or alternate networks"
+                f"Verify network connection — Check cable connection, Wi-Fi signal, or VPN status{device_context}",
+                "Test connectivity — Run: ping to external host and ping to gateway in Command Prompt",
+                "Check DNS configuration — Run: ipconfig /all to verify DNS servers assigned → flush DNS cache",
+                "Try alternate DNS — If primary DNS failing, configure alternate DNS server in Network Settings",
+                "Check firewall/antivirus — Verify firewall not blocking network traffic → temporarily disable to test",
+                "Verify proxy settings (if corporate) — Check Network Settings for proxy configuration → configure software to use proxy if needed",
+                "Re-download from different source — If download timing out, try alternate vendor URL or network share",
+                "Document connectivity results — Record ping success/failure, DNS resolution status, and any firewall blocks encountered"
             ]
         
-        elif any(kw in query_lower or kw in category for kw in ["printer", "print", "printing", "document"]):
+        elif any(kw in query_lower or kw in category for kw in ["performance", "slow", "freeze", "hang", "lag", "timeout", "resource", "memory"]):
             points = [
-                "Verify the printer is powered on, connected to network, and showing as ready",
-                "Clear print queue and restart print spooler service on the computer",
-                "Reinstall or update printer drivers from manufacturer's website",
-                "Check printer permissions and sharing settings in network configuration",
-                "Test printing from different applications and document formats",
-                "Review printer error logs and clear any stuck print jobs from the queue"
+                f"Check system resources — Open Task Manager (Ctrl+Shift+Esc) → monitor CPU, RAM, and disk I/O usage{device_context}",
+                "Close unnecessary programs — End non-essential processes in Task Manager to free RAM/CPU",
+                "Clear temporary files — Run Disk Cleanup (cleanmgr.exe) → delete Temp, Cache, Recycle Bin files",
+                "Disable visual effects — Settings > Advanced System Settings > Performance > Visual Effects > optimize for best performance",
+                "Disable background processes — Services.msc → disable non-critical background services and startup programs",
+                "Check for malware — Run security scan (Windows Defender or equivalent antimalware) to rule out infections",
+                "Optimize storage — Check disk for fragmentation and optimize if needed (especially important for traditional drives)",
+                "Monitor system performance — Run after changes and document resource usage (CPU %, RAM %, Disk %) for analysis"
             ]
         
-        elif any(kw in query_lower or kw in category for kw in ["password", "authentication", "login", "access", "permission", "denied"]):
+        elif any(kw in query_lower or kw in category for kw in ["password", "authentication", "login", "access", "permission", "denied", "credential"]):
             points = [
-                "Verify credentials are correct and account is not locked or expired",
-                "Check if user account is enabled and has not been disabled",
-                "Reset password through official IT channels and verify password policy compliance",
-                "Verify user is member of required security groups and has necessary permissions",
-                "Check Multi-Factor Authentication (MFA) settings and alternative authentication methods",
-                "Review account lockout policies and recent failed login attempts"
+                f"Verify credentials are correct — Check username and password for typos, verify Caps Lock and keyboard layout{device_context}",
+                "Confirm account is active — Verify account is not disabled in directory services or system settings",
+                "Clear cached credentials — Credential Manager > remove stored credentials → re-enter fresh credentials",
+                "Check account lockout status — Verify account is not locked after multiple failed login attempts → request unlock if needed",
+                "Try alternate authentication method — Use alternative authentication if available (security key, alternative credential method)",
+                "Verify file/share permissions — Verify user has necessary NTFS permissions for target resource (right-click > Properties > Security)",
+                "Check MFA status — If multi-factor authentication enabled, verify authentication method is accessible and not failing",
+                "Document authentication error — Note exact error message, error code, and when error occurs for troubleshooting"
             ]
         
-        elif any(kw in query_lower or kw in category for kw in ["performance", "slow", "freeze", "hang", "lag", "timeout"]):
+        elif any(kw in query_lower or kw in category for kw in ["printer", "print", "printing", "document", "output"]):
             points = [
-                "Monitor CPU, memory, and disk usage to identify resource bottlenecks",
-                "Close unnecessary applications and browser tabs consuming system resources",
-                "Run disk cleanup utility and defragmentation to improve disk performance",
-                "Check Task Manager for processes consuming excessive resources and investigate",
-                "Scan for malware and potentially unwanted programs using antivirus software",
-                "Check for outdated drivers and system updates affecting performance"
+                f"Verify printer is powered on and online — Check indicator lights, status display, connection cable{device_context}",
+                "Clear print queue — Control Panel > Devices and Printers > right-click printer > 'See what's printing' > Cancel all documents",
+                "Restart Print Spooler service — Services.msc > Print Spooler > right-click > Restart",
+                "Delete stuck print jobs manually — Access print spooler folder and delete stuck job files (requires admin privileges)",
+                "Reinstall printer driver — Uninstall current driver → download latest from printer manufacturer website → restart system",
+                "Set printer as default — Right-click printer in Devices and Printers → select 'Set as default printer'",
+                "Verify connectivity (if network printer) — Test connectivity to printer → verify firewall not blocking printer communication ports",
+                "Test print functionality — Send test page to verify printer accepting and processing jobs correctly"
             ]
         
-        elif any(kw in query_lower or kw in category for kw in ["software", "installation", "install", "update", "upgrade", "license"]):
+        elif any(kw in query_lower or kw in category for kw in ["email", "outlook", "gmail", "mail", "exchange", "calendar"]):
             points = [
-                "Verify software license is valid, activated, and not expired",
-                "Check system meets minimum requirements for software installation",
-                "Run installer with administrative privileges and disable antivirus temporarily if needed",
-                "Clear temporary files and previous installation remnants before reinstalling",
-                "Check software vendor's release notes for known issues and workarounds",
-                "Verify installation directories have proper read/write permissions"
-            ]
-        
-        elif any(kw in query_lower or kw in category for kw in ["email", "outlook", "gmail", "mail", "exchange"]):
-            points = [
-                "Verify email account credentials and check if mailbox is not full",
-                "Clear email cache and reconfigure email client connections",
-                "Check email server connectivity and IMAP/SMTP settings are correct",
-                "Verify firewall and antivirus are not blocking email client connections",
-                "Check email account security settings and app-specific password requirements",
-                "Test email synchronization and manually force a sync attempt"
+                f"Verify credentials and mail server settings — Check email address, password, server configuration per vendor documentation{device_context}",
+                "Test credentials in webmail first — Access mail provider web portal directly to verify credentials and account access work",
+                "Clear email client cache — Clear client-side cache and temporary files → restart email application",
+                "Check firewall/antivirus blocking — Verify firewall allows email client → check antivirus not blocking email communication ports",
+                "Verify mailbox usage — Check if mailbox has reached quota/capacity limit → archive or delete old emails if needed",
+                "Repair mailbox database if corrupted — Use mail client repair tools to verify/repair local mailbox database files",
+                "Check multi-factor authentication — If MFA/2FA enabled, verify app-specific credentials or authentication method configured correctly",
+                "Test email functionality — Send/receive test message to verify email client connection and functionality working correctly"
             ]
         
         if not points:
             points = [
-                "Gather complete error message, logs, and steps to reproduce the issue",
-                "Perform basic troubleshooting: restart system, clear cache, log out and back in",
-                "Check for software updates, patches, and driver updates for affected components",
-                "Review system event logs and application logs for related errors or warnings",
-                "Test in Safe Mode or with minimal applications to isolate software conflicts",
-                "Document findings and prepare details for escalation if issue persists"
+                f"Document issue details — Note error code/message, affected application, reproduction steps, and system information{device_context}",
+                "Check system logs — Review Event Viewer or system logs for error messages at time of incident",
+                "Verify system is updated — Run OS updates, update all software, update device drivers",
+                "Try system restart — Often resolves temporary issues; restart affected service or application if applicable",
+                "Run system diagnostic tools — Use system repair tools (SFC scan, DISM, chkdsk) to verify system integrity",
+                "Test in Safe Mode — Safe Mode isolates driver/software conflicts → use to identify problematic components",
+                "Collect diagnostic data — Gather system information, logs, and error screenshots for analysis",
+                "Review vendor documentation — Check vendor KB or support articles for known issues matching error code"
             ]
         
-        if len(points) < 5:
-            points.append("Consult vendor documentation and support resources for the affected software")
-        if len(points) < 6:
-            points.append(f"Search for solutions specific to: {query[:40]}")
-        
-        return points[:6]
+        return points[:8]  # Return up to 8 comprehensive points
 
     # Sorting and parsing helpers moved to `app.utils.incident_utils.IncidentUtils` for reuse
         

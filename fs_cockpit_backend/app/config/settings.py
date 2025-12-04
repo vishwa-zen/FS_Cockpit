@@ -114,6 +114,16 @@ class Settings(BaseSettings):
     CACHE_TTL_USER: int = 3600  # 1 hour for user info
     CACHE_TTL_INCIDENT: int = 300  # 5 minutes for incident data
     CACHE_TTL_REMOTE_ACTION: int = 600  # 10 minutes for remote actions
+    CACHE_TTL_KNOWLEDGE: int = 900  # 15 minutes for KB articles
+    CACHE_TTL_SOLUTION: int = 900  # 15 minutes for AI-generated solutions
+    
+    # Google Gemini AI Configuration
+    GOOGLE_AI_API_KEY: str = Field(default="", env="GOOGLE_AI_API_KEY")
+    GOOGLE_AI_ENABLED: bool = Field(default=False, env="GOOGLE_AI_ENABLED")
+    GOOGLE_AI_USE_REAL_RESPONSES: bool = Field(default=True, env="GOOGLE_AI_USE_REAL_RESPONSES")
+    GOOGLE_AI_MODEL_NAME: str = Field(default="gemini-pro", env="GOOGLE_AI_MODEL_NAME")
+    GOOGLE_AI_TEMPERATURE: float = Field(default=0.7, env="GOOGLE_AI_TEMPERATURE")
+    GOOGLE_AI_MAX_OUTPUT_TOKENS: int = Field(default=1000, env="GOOGLE_AI_MAX_OUTPUT_TOKENS")
     
     # CORS defaults
     ALLOWED_ORIGINS: List[str] = ["*"]
