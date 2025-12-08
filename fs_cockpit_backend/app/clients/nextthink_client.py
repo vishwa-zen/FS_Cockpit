@@ -1,7 +1,7 @@
 """NextThink API client."""
 import httpx
 import structlog
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from app.clients.base_cleint import BaseClient
 from app.exceptions.custom_exceptions import ExternalServiceError
@@ -306,3 +306,206 @@ class NextThinkClient(BaseClient):
                 status_code=status or 502,
                 message=str(e)
             ) from e
+    
+    async def execute_nql_query(
+        self,
+        query_id: str,
+        parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Execute a generic NQL query on NextThink.
+        
+        Args:
+            query_id (str): The query ID (e.g., "#zentience_ntt_demo_device_performance")
+            parameters (dict): Query parameters including device_name
+            
+        Returns:
+            dict: NQL query response containing the requested data
+        """
+        endpoint = "/api/v1/nql/execute"
+        
+        payload = {
+            "queryId": query_id,
+            "parameters": parameters
+        }
+        
+        logger.debug(
+            "Executing NQL query",
+            query_id=query_id,
+            parameters=parameters
+        )
+        
+        try:
+            response = await self.post(endpoint, json=payload)
+            return response
+        except httpx.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            raise ExternalServiceError(
+                service="NextThink",
+                status_code=status or 502,
+                message=f"NQL query failed: {str(e)}"
+            ) from e
+    
+    async def get_device_diagnostics(
+        self,
+        device_name: str,
+        include_categories: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch comprehensive device diagnostics from NextThink using multiple NQL queries.
+        
+        Uses 5 actual verified NQL queries:
+        - #zentience_ntt_demo_device_information (Hardware & OS info - 18 fields)
+        - #zentience_ntt_demo_device_performance (CPU/GPU/Memory/Boot metrics - 11 fields)
+        - #zentience_ntt_demo_device_score (DEX scores - 10 scores)
+        - #zentience_ntt_demo_app_crash_count (App crashes in 24h - 1 field)
+        - #zentience_ntt_demo_no_of_alerts (Alert summary - variable)
+        
+        Args:
+            device_name (str): The device name to query
+            include_categories (list, optional): Specific diagnostic categories to query
+                Available: ["hardware", "os_health", "device_scores", "application_health", "alerts"]
+            
+        Returns:
+            dict: Aggregated diagnostics data with raw responses
+        """
+        logger.debug(
+            "Fetching device diagnostics",
+            device_name=device_name,
+            categories=include_categories
+        )
+        
+        diagnostics = {
+            "device_name": device_name,
+            "timestamp": datetime.now().isoformat(),
+            "queries_executed": [],
+            "data": {},
+            "errors": []
+        }
+        
+        # Map diagnostic categories to actual NQL query IDs (verified in Postman)
+        diagnostic_queries = {
+            "hardware": {
+                "query_id": "#zentience_ntt_demo_device_information",
+                "description": "Device hardware, CPU, GPU, Memory, Disk, Network"
+            },
+            "hardware_performance": {
+                "query_id": "#zentience_ntt_demo_device_performance",
+                "description": "CPU/GPU/Memory usage, boot metrics (24h/7d averages)"
+            },
+            "os_health": {
+                "query_id": "#zentience_ntt_demo_device_information",
+                "description": "OS build, platform, architecture, uptime"
+            },
+            "device_scores": {
+                "query_id": "#zentience_ntt_demo_device_score",
+                "description": "Digital Experience (DEX) scores"
+            },
+            "application_health": {
+                "query_id": "#zentience_ntt_demo_app_crash_count",
+                "description": "Application crash count (24h)"
+            },
+            "alerts": {
+                "query_id": "#zentience_ntt_demo_no_of_alerts",
+                "description": "Alert summary"
+            }
+        }
+        
+        # Determine which queries to execute
+        categories_to_query = include_categories or list(diagnostic_queries.keys())
+        
+        # Track which actual NQL queries we've already executed (to avoid duplicates)
+        executed_query_ids = set()
+        
+        # Execute each diagnostic query
+        for category in categories_to_query:
+            if category not in diagnostic_queries:
+                logger.warning(
+                    "Unknown diagnostic category",
+                    category=category,
+                    available=list(diagnostic_queries.keys())
+                )
+                diagnostics["errors"].append({
+                    "category": category,
+                    "error": f"Unknown diagnostic category. Available: {list(diagnostic_queries.keys())}"
+                })
+                continue
+            
+            query_info = diagnostic_queries[category]
+            query_id = query_info["query_id"]
+            
+            try:
+                logger.debug(
+                    "Executing diagnostic query",
+                    category=category,
+                    query_id=query_id,
+                    device_name=device_name
+                )
+                
+                # Execute NQL query with device name filter
+                response = await self.execute_nql_query(
+                    query_id=query_id,
+                    parameters={"device_name": device_name}
+                )
+                
+                # Store response using query_id as key (for hardware and os_health which share same query)
+                if query_id not in executed_query_ids:
+                    diagnostics["data"][query_id] = {
+                        "description": query_info["description"],
+                        "raw_response": response
+                    }
+                    executed_query_ids.add(query_id)
+                
+                diagnostics["queries_executed"].append(category)
+                
+                logger.debug(
+                    "Successfully retrieved diagnostics",
+                    category=category,
+                    query_id=query_id
+                )
+                
+            except ExternalServiceError as e:
+                logger.error(
+                    "Failed to retrieve diagnostics",
+                    category=category,
+                    query_id=query_id,
+                    error=str(e)
+                )
+                diagnostics["errors"].append({
+                    "category": category,
+                    "error": str(e),
+                    "query_id": query_id
+                })
+            except Exception as e:  # noqa: BLE001
+                logger.error(
+                    "Unexpected error retrieving diagnostics",
+                    category=category,
+                    query_id=query_id,
+                    error=str(e)
+                )
+                diagnostics["errors"].append({
+                    "category": category,
+                    "error": f"Unexpected error: {str(e)}"
+                })
+        
+        # Add summary
+        diagnostics["summary"] = {
+            "total_categories_defined": len(diagnostic_queries),
+            "total_categories_executed": len(diagnostics["queries_executed"]),
+            "total_categories_failed": len(diagnostics["errors"]),
+            "success_rate_percent": (
+                len(diagnostics["queries_executed"]) / len(categories_to_query) * 100
+                if categories_to_query else 0
+            )
+        }
+        
+        logger.info(
+            "Device diagnostics retrieval completed",
+            device_name=device_name,
+            queries_executed=len(diagnostics["queries_executed"]),
+            queries_failed=len(diagnostics["errors"]),
+            success_rate=diagnostics["summary"]["success_rate_percent"]
+        )
+        
+        return diagnostics

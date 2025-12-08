@@ -307,3 +307,94 @@ class ServiceNowClient(BaseClient):
             return results[0]
         logger.debug("Incident not found", incident_number=incident_number)
         return {}
+    
+    async def fetch_incident_comments(
+        self,
+        incident_sys_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        sysparm_display_value: str = "all"
+    ) -> dict:
+        """
+        Retrieve comments/notes for a specific incident.
+        
+        Args:
+            incident_sys_id (str): The sys_id of the incident.
+            limit (int): Maximum number of comments to return (default 100).
+            offset (int): Pagination offset (default 0).
+            sysparm_display_value (str): Display value mode for ServiceNow.
+            
+        Returns:
+            dict: Raw API response containing comments.
+        """
+        endpoint = "/api/now/table/sys_journal_field"
+        params = {
+            "sysparm_query": f"element_id={incident_sys_id}^element=comments^ORelement=work_notes",
+            "sysparm_limit": str(limit),
+            "sysparm_offset": str(offset),
+            "sysparm_display_value": sysparm_display_value,
+            "sysparm_fields": "sys_id,element_id,value,sys_created_by,sys_created_on,sys_updated_on",
+            "sysparm_order_by": "-sys_created_on"
+        }
+        logger.debug(
+            "Fetching incident comments from ServiceNow",
+            incident_sys_id=incident_sys_id,
+            limit=limit,
+            offset=offset
+        )
+        try:
+            response = await self.get(endpoint, params=params)
+        except httpx.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            raise ExternalServiceError(service="ServiceNow", status_code=status or 502, message=str(e)) from e
+        return response
+    
+    async def fetch_incident_activity_logs(
+        self,
+        incident_sys_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        sysparm_display_value: str = "all"
+    ) -> dict:
+        """
+        Retrieve activity logs (changes/updates) for a specific incident.
+        
+        Uses sys_journal_field table which is more reliable than sys_audit_log.
+        
+        Args:
+            incident_sys_id (str): The sys_id of the incident.
+            limit (int): Maximum number of activity logs to return (default 100).
+            offset (int): Pagination offset (default 0).
+            sysparm_display_value (str): Display value mode for ServiceNow.
+            
+        Returns:
+            dict: Raw API response containing activity logs.
+        """
+        # Use sys_journal_field for state/update tracking (more reliable)
+        logger.debug(
+            "Fetching incident activity logs from ServiceNow",
+            incident_sys_id=incident_sys_id,
+            limit=limit,
+            offset=offset
+        )
+        endpoint = "/api/now/table/sys_journal_field"
+        params = {
+            "sysparm_query": f"element_id={incident_sys_id}^element=state",
+            "sysparm_limit": str(limit),
+            "sysparm_offset": str(offset),
+            "sysparm_display_value": sysparm_display_value,
+            "sysparm_fields": "sys_id,value,sys_created_by,sys_created_on",
+            "sysparm_order_by": "-sys_created_on"
+        }
+        try:
+            response = await self.get(endpoint, params=params)
+            return response
+        except httpx.HTTPError as e:
+            logger.warning(
+                "Could not fetch activity logs",
+                incident_sys_id=incident_sys_id,
+                error=str(e)
+            )
+            # Return empty result instead of raising error
+            return {"result": [], "warning": "Activity logs not available for this incident"}

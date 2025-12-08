@@ -8,6 +8,12 @@ from app.clients.intune_client import IntuneClient
 from app.config.settings import get_settings
 from app.schemas.device import DeviceDTO
 from app.cache.memory_cache import get_cache
+from app.db import (
+    DeviceWriter,
+    SyncHistoryWriter,
+    AuditLogWriter,
+    SessionLocal,
+)
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -131,6 +137,7 @@ class IntuneService:
         """
         Fetch devices by device name.
         Cached for 15 minutes since device info is relatively stable.
+        Pushes devices to database for Agentic AI.
 
         Args:
             device_name (str): The device name
@@ -153,6 +160,34 @@ class IntuneService:
 
         devices = raw.get("value", [])
         dtos: List[DeviceDTO] = [self._map_device_to_dto(d) for d in devices]
+        
+        # Push devices to database for AI engine
+        db = SessionLocal()
+        try:
+            for device in dtos:
+                DeviceWriter.push_device(
+                    db,
+                    device_name=device.deviceName or "",
+                    device_type=device.operatingSystem or "Unknown",
+                    intune_device_id=device.deviceId,
+                    os_version=device.osVersion,
+                    serial_number=device.serialNumber,
+                    is_compliant=(device.complianceState == "Compliant"),
+                    is_managed=True,
+                )
+            
+            # Log sync
+            SyncHistoryWriter.push_sync_record(
+                db,
+                source="Intune",
+                sync_status="success",
+                record_count=len(dtos),
+            )
+            logger.info("Pushed devices to DB", count=len(dtos), device_name=device_name)
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error pushing devices to DB", error=str(e))
+        finally:
+            db.close()
         
         # Cache the result
         if self.cache:

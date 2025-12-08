@@ -12,6 +12,12 @@ from app.schemas.incident import IncidentDTO
 from app.schemas.computer import ComputerDTO
 from app.schemas.knowledge import KnowledgeArticleDTO
 from app.cache.memory_cache import get_cache
+from app.exceptions.custom_exceptions import ExternalServiceError
+from app.db import (
+    IncidentWriter,
+    AuditLogWriter,
+    SessionLocal,
+)
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -80,6 +86,7 @@ class ServiceNowService:
         """
         Retrieve incidents assigned to a specific technician.
         Cached for 5 minutes since incident lists change frequently.
+        Also pushes incidents to database for Agentic AI.
 
         Args:
             technician_username (str): The username of the technician.
@@ -105,6 +112,35 @@ class ServiceNowService:
         dtos: List[IncidentDTO] = [self._map_incident_to_dto(r) for r in results]
         # sort by openedAt (newest first)
         dtos = IncidentUtils.sort_dtos_by_opened_at(dtos)
+        
+        # Push incidents to database for AI engine
+        db = SessionLocal()
+        try:
+            for incident in dtos:
+                IncidentWriter.push_incident(
+                    db,
+                    incident_number=incident.incidentNumber,
+                    short_description=incident.shortDescription or "",
+                    servicenow_sys_id=incident.sysId,
+                    device_name=incident.deviceName,
+                    description=incident.description,
+                    status=incident.status or "new",
+                    priority=int(incident.priority or 3),
+                )
+            
+            # Log audit
+            AuditLogWriter.log_action(
+                db,
+                technician_username=technician_username,
+                action="fetch_incidents",
+                resource_type="incident",
+                details=f"fetched {len(dtos)} incidents",
+            )
+            logger.info("Pushed incidents to DB", count=len(dtos), technician=technician_username)
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error pushing incidents to DB", error=str(e))
+        finally:
+            db.close()
         
         # Cache the result
         if self.cache:
@@ -350,6 +386,348 @@ class ServiceNowService:
             logger.debug("Cached incident details", incident_number=incident_number)
         
         return incident_dto
+
+    async def fetch_incident_comments(
+        self,
+        incident_number: str,
+        incident_sys_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> dict:
+        """
+        Retrieve comments and notes for a specific incident.
+        
+        Results are cached for the specified TTL (default: 5 minutes).
+        Comments include both user-visible comments and internal work notes.
+        
+        Args:
+            incident_number (str): The incident number (e.g., 'INC0024934'). Used to fetch sys_id if not provided.
+            incident_sys_id (str, optional): The ServiceNow sys_id of the incident. If not provided, will be fetched
+                from incident details. Providing this avoids an extra lookup.
+            limit (int): Maximum number of comments to return (default 100, max typically 300 per API limits).
+            offset (int): Pagination offset for retrieving subsequent comment pages (default 0).
+            
+        Returns:
+            dict: Dictionary containing incident_number, incident_sys_id, comments list, total_comments,
+                limit, offset, has_more flag, and optional error/warning messages.
+        """
+        # Build cache key including pagination to avoid stale data on different pages
+        cache_key = f"sn:incident_comments:{incident_number}:{limit}:{offset}"
+        
+        # Check cache first - return immediately if available
+        if self.cache:
+            cached_comments = self.cache.get(cache_key)
+            if cached_comments is not None:
+                logger.debug(
+                    "Cache hit for incident comments",
+                    incident_number=incident_number,
+                    limit=limit,
+                    offset=offset
+                )
+                return cached_comments
+        
+        # Resolve incident_sys_id if not provided
+        if not incident_sys_id:
+            incident_detail = await self.fetch_incident_details(incident_number)
+            if not incident_detail:
+                logger.warning(
+                    "Incident not found, cannot fetch comments",
+                    incident_number=incident_number
+                )
+                # Return structured error response instead of raising exception
+                return {
+                    "incident_number": incident_number,
+                    "incident_sys_id": "",
+                    "comments": [],
+                    "total_comments": 0,
+                    "limit": limit,
+                    "offset": offset,
+                    "has_more": False,
+                    "error": f"Incident {incident_number} not found"
+                }
+            incident_sys_id = incident_detail.sysId
+        
+        logger.debug(
+            "Fetching incident comments from ServiceNow",
+            incident_number=incident_number,
+            incident_sys_id=incident_sys_id,
+            limit=limit,
+            offset=offset
+        )
+        
+        try:
+            # Fetch raw comments from ServiceNow API
+            async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
+                raw_response = await client.fetch_incident_comments(
+                    incident_sys_id=incident_sys_id,
+                    limit=limit,
+                    offset=offset
+                )
+        except ExternalServiceError as e:
+            # ServiceNow API errors (4xx/5xx) are wrapped in ExternalServiceError
+            logger.error(
+                "ServiceNow API error fetching comments",
+                incident_number=incident_number,
+                incident_sys_id=incident_sys_id,
+                error=str(e),
+                status=e.status_code
+            )
+            # Return graceful error response
+            return {
+                "incident_number": incident_number,
+                "incident_sys_id": incident_sys_id,
+                "comments": [],
+                "total_comments": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_more": False,
+                "error": f"Failed to fetch comments: {str(e)}"
+            }
+        except Exception as e:  # noqa: BLE001
+            # Catch any unexpected exceptions to prevent route crashes
+            logger.error(
+                "Unexpected error fetching incident comments",
+                incident_number=incident_number,
+                incident_sys_id=incident_sys_id,
+                error=str(e)
+            )
+            return {
+                "incident_number": incident_number,
+                "incident_sys_id": incident_sys_id,
+                "comments": [],
+                "total_comments": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_more": False,
+                "error": "Failed to fetch comments due to unexpected error"
+            }
+        
+        # Parse and map raw comments to DTOs
+        from app.schemas.incident_comments import CommentDTO
+        raw_comments = raw_response.get("result", [])
+        comments = []
+        
+        # Convert each raw comment to a structured CommentDTO
+        for comment in raw_comments:
+            try:
+                comment_dto = CommentDTO(
+                    sys_id=IncidentUtils.extract_str(comment.get("sys_id")),
+                    comment_id=IncidentUtils.extract_str(comment.get("sys_id")),  # Use sys_id as unique identifier
+                    text=IncidentUtils.extract_str(comment.get("value", "")),
+                    created_by=IncidentUtils.extract_str(comment.get("sys_created_by")),
+                    created_by_name=IncidentUtils.extract_str(comment.get("sys_created_by")),
+                    created_at=IncidentUtils.extract_str(comment.get("sys_created_on")),
+                    updated_at=IncidentUtils.extract_str(comment.get("sys_updated_on")),
+                    is_internal=comment.get("element") == "work_notes",  # work_notes are internal, comments are public
+                    comment_type="work_note" if comment.get("element") == "work_notes" else "comment"
+                )
+                comments.append(comment_dto)
+            except Exception as e:  # noqa: BLE001
+                # Log malformed comments but continue processing others
+                logger.warning(
+                    "Failed to parse comment, skipping",
+                    incident_number=incident_number,
+                    error=str(e)
+                )
+                continue
+        
+        # Build result object with pagination metadata
+        result = {
+            "incident_number": incident_number,
+            "incident_sys_id": incident_sys_id,
+            "comments": comments,
+            "total_comments": len(comments),
+            "limit": limit,
+            "offset": offset,
+            "has_more": len(comments) >= limit  # If we got exactly limit comments, more might exist
+        }
+        
+        # Cache the result using configured TTL
+        if self.cache:
+            self.cache.set(cache_key, result, ttl_seconds=self.settings.CACHE_TTL_INCIDENT)
+            logger.debug(
+                "Cached incident comments",
+                incident_number=incident_number,
+                count=len(comments),
+                ttl_seconds=self.settings.CACHE_TTL_INCIDENT
+            )
+        
+        return result
+
+    async def fetch_incident_activity_logs(
+        self,
+        incident_number: str,
+        incident_sys_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> dict:
+        """
+        Retrieve activity logs (field changes and status updates) for a specific incident.
+        
+        Provides an audit trail of all modifications made to the incident, including:
+        - Status/state changes
+        - Priority updates
+        - Assignment changes
+        
+        Results are cached for the specified TTL (default: 5 minutes).
+        Note: Uses sys_journal_field table for state changes since sys_audit_log may have restricted access.
+        
+        Args:
+            incident_number (str): The incident number (e.g., 'INC0024934'). Used to fetch sys_id if not provided.
+            incident_sys_id (str, optional): The ServiceNow sys_id. If not provided, will be fetched from incident details.
+            limit (int): Maximum number of activity logs to return (default 100).
+            offset (int): Pagination offset (default 0).
+            
+        Returns:
+            dict: Dictionary containing incident_number, incident_sys_id, activity_logs list, total_activity_logs,
+                limit, offset, has_more flag, and optional warning/error messages.
+        """
+        # Build cache key including pagination to avoid stale data on different pages
+        cache_key = f"sn:incident_activity:{incident_number}:{limit}:{offset}"
+        
+        # Check cache first - return immediately if available
+        if self.cache:
+            cached_activity = self.cache.get(cache_key)
+            if cached_activity is not None:
+                logger.debug(
+                    "Cache hit for incident activity logs",
+                    incident_number=incident_number,
+                    limit=limit,
+                    offset=offset
+                )
+                return cached_activity
+        
+        # Resolve incident_sys_id if not provided
+        if not incident_sys_id:
+            incident_detail = await self.fetch_incident_details(incident_number)
+            if not incident_detail:
+                logger.warning(
+                    "Incident not found, cannot fetch activity logs",
+                    incident_number=incident_number
+                )
+                # Return structured error response instead of raising exception
+                return {
+                    "incident_number": incident_number,
+                    "incident_sys_id": "",
+                    "activity_logs": [],
+                    "total_activity_logs": 0,
+                    "limit": limit,
+                    "offset": offset,
+                    "has_more": False,
+                    "error": f"Incident {incident_number} not found"
+                }
+            incident_sys_id = incident_detail.sysId
+        
+        logger.debug(
+            "Fetching incident activity logs from ServiceNow",
+            incident_number=incident_number,
+            incident_sys_id=incident_sys_id,
+            limit=limit,
+            offset=offset
+        )
+        
+        try:
+            # Fetch raw activity logs from ServiceNow API
+            async with ServiceNowClient(self.base_url, self.sn_username, self.sn_password) as client:
+                raw_response = await client.fetch_incident_activity_logs(
+                    incident_sys_id=incident_sys_id,
+                    limit=limit,
+                    offset=offset
+                )
+        except ExternalServiceError as e:
+            # ServiceNow API errors (4xx/5xx) are wrapped in ExternalServiceError
+            logger.error(
+                "ServiceNow API error fetching activity logs",
+                incident_number=incident_number,
+                incident_sys_id=incident_sys_id,
+                error=str(e),
+                status=e.status_code
+            )
+            # Return graceful error response instead of raising
+            return {
+                "incident_number": incident_number,
+                "incident_sys_id": incident_sys_id,
+                "activity_logs": [],
+                "total_activity_logs": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_more": False,
+                "warning": "Activity logs not available for this incident"
+            }
+        except Exception as e:  # noqa: BLE001
+            # Catch any unexpected exceptions to prevent route crashes
+            logger.error(
+                "Unexpected error fetching incident activity logs",
+                incident_number=incident_number,
+                incident_sys_id=incident_sys_id,
+                error=str(e)
+            )
+            return {
+                "incident_number": incident_number,
+                "incident_sys_id": incident_sys_id,
+                "activity_logs": [],
+                "total_activity_logs": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_more": False,
+                "warning": "Activity logs unavailable due to API restrictions or unexpected error"
+            }
+        
+        # Parse and map raw activity logs to DTOs
+        from app.schemas.incident_comments import ActivityLogEntryDTO
+        raw_logs = raw_response.get("result", [])
+        activity_logs = []
+        
+        # Convert each raw log entry to a structured ActivityLogEntryDTO
+        # Note: Uses sys_journal_field table which provides state changes
+        for log_entry in raw_logs:
+            try:
+                log_dto = ActivityLogEntryDTO(
+                    sys_id=IncidentUtils.extract_str(log_entry.get("sys_id")),
+                    field_name="state",  # sys_journal_field captures state/status changes
+                    old_value=None,  # sys_journal_field doesn't provide old_value directly
+                    new_value=IncidentUtils.extract_str(log_entry.get("value")),  # The new state value
+                    changed_by=IncidentUtils.extract_str(log_entry.get("sys_created_by")),  # Who made the change
+                    changed_by_name=IncidentUtils.extract_str(log_entry.get("sys_created_by")),
+                    changed_at=IncidentUtils.extract_str(log_entry.get("sys_created_on")),  # When it changed
+                    change_type="update"
+                )
+                activity_logs.append(log_dto)
+            except Exception as e:  # noqa: BLE001
+                # Log malformed entries but continue processing others
+                logger.warning(
+                    "Failed to parse activity log entry, skipping",
+                    incident_number=incident_number,
+                    error=str(e)
+                )
+                continue
+        
+        # Build result object with pagination metadata
+        result = {
+            "incident_number": incident_number,
+            "incident_sys_id": incident_sys_id,
+            "activity_logs": activity_logs,
+            "total_activity_logs": len(activity_logs),
+            "limit": limit,
+            "offset": offset,
+            "has_more": len(activity_logs) >= limit  # If we got exactly limit logs, more might exist
+        }
+        
+        # Add warning if no activity logs found (may indicate API restrictions)
+        if not activity_logs:
+            result["warning"] = "No activity logs found for this incident (may be due to API access restrictions)"
+        
+        # Cache the result using configured TTL
+        if self.cache:
+            self.cache.set(cache_key, result, ttl_seconds=self.settings.CACHE_TTL_INCIDENT)
+            logger.debug(
+                "Cached incident activity logs",
+                incident_number=incident_number,
+                count=len(activity_logs),
+                ttl_seconds=self.settings.CACHE_TTL_INCIDENT
+            )
+        
+        return result
 
     def _map_computer_to_dto(self, rec: dict) -> ComputerDTO:
         """Map a ServiceNow computer record to ComputerDTO."""
@@ -823,6 +1201,20 @@ class ServiceNowService:
                 "confidence": "medium",
                 "message": f"Solution points generated using AI analysis of: {search_query[:100]}..."
             }
+            
+            # Push solution to database for AI engine
+            db = SessionLocal()
+            try:
+                IncidentWriter.update_incident_solution(
+                    db,
+                    incident_number=incident_number,
+                    solution_source=ai_source,
+                )
+                logger.info("Pushed solution to DB", incident_number=incident_number, source=ai_source)
+            except Exception as e:  # noqa: BLE001
+                logger.error("Error pushing solution to DB", incident_number=incident_number, error=str(e))
+            finally:
+                db.close()
             
             # Cache the AI-generated result too
             if self.cache:

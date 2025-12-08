@@ -249,3 +249,209 @@ async def get_solution_summary_for_incident(
     return result
 
 
+@router.get(
+    "/incident/{incident_number}/comments",
+    summary="Get Incident Comments and Notes",
+)
+async def fetch_incident_comments(
+    incident_number: str,
+    limit: int = 100,
+    offset: int = 0,
+    request_id: str = Depends(_get_request_id),
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Retrieve all comments and notes for a specific incident.
+    
+    Args:
+        incident_number (str): The incident number (e.g., "INC0024934")
+        limit (int): Maximum number of comments to return (default: 100)
+        offset (int): Pagination offset (default: 0)
+        request_id (str): The unique request identifier
+    
+    Returns:
+        dict: Dictionary containing:
+            - incident_number: The incident number
+            - incident_sys_id: The ServiceNow sys_id
+            - comments: List of comment objects with text, author, timestamp, etc.
+            - total_comments: Total number of comments retrieved
+            - limit: Requested limit
+            - offset: Requested offset
+            - has_more: Whether there are more comments available
+    
+    Example:
+        GET /api/v1/servicenow/incident/INC0024934/comments?limit=50&offset=0
+        
+        Response:
+        {
+            "incident_number": "INC0024934",
+            "incident_sys_id": "a1b2c3d4e5f6...",
+            "comments": [
+                {
+                    "sys_id": "...",
+                    "comment_id": "...",
+                    "text": "Issue resolved by applying patch",
+                    "created_by": "john.smith",
+                    "created_by_name": "John Smith",
+                    "created_at": "2024-12-08T10:30:00Z",
+                    "updated_at": "2024-12-08T10:30:00Z",
+                    "is_internal": false,
+                    "comment_type": "comment"
+                }
+            ],
+            "total_comments": 5,
+            "limit": 50,
+            "offset": 0,
+            "has_more": false
+        }
+    """
+    logger.info("Fetching comments for incident", incident_number=incident_number, request_id=request_id)
+    result = await service.fetch_incident_comments(incident_number, limit=limit, offset=offset)
+    result["request_id"] = request_id
+    return result
+
+
+@router.get(
+    "/incident/{incident_number}/activity",
+    summary="Get Incident Activity Logs",
+)
+async def fetch_incident_activity(
+    incident_number: str,
+    limit: int = 100,
+    offset: int = 0,
+    request_id: str = Depends(_get_request_id),
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Retrieve activity logs (field changes and updates) for a specific incident.
+    
+    This provides a complete audit trail of all changes made to the incident,
+    including status changes, priority updates, assignments, etc.
+    
+    Args:
+        incident_number (str): The incident number (e.g., "INC0024934")
+        limit (int): Maximum number of activity logs to return (default: 100)
+        offset (int): Pagination offset (default: 0)
+        request_id (str): The unique request identifier
+    
+    Returns:
+        dict: Dictionary containing:
+            - incident_number: The incident number
+            - incident_sys_id: The ServiceNow sys_id
+            - activity_logs: List of activity log entries with field changes, old/new values, etc.
+            - total_activity_logs: Total number of activity logs retrieved
+            - limit: Requested limit
+            - offset: Requested offset
+            - has_more: Whether there are more activity logs available
+    
+    Example:
+        GET /api/v1/servicenow/incident/INC0024934/activity?limit=50&offset=0
+        
+        Response:
+        {
+            "incident_number": "INC0024934",
+            "incident_sys_id": "a1b2c3d4e5f6...",
+            "activity_logs": [
+                {
+                    "sys_id": "...",
+                    "field_name": "state",
+                    "old_value": "1",
+                    "new_value": "2",
+                    "changed_by": "john.smith",
+                    "changed_by_name": "John Smith",
+                    "changed_at": "2024-12-08T10:30:00Z",
+                    "change_type": "update"
+                },
+                {
+                    "sys_id": "...",
+                    "field_name": "priority",
+                    "old_value": "3",
+                    "new_value": "2",
+                    "changed_by": "jane.doe",
+                    "changed_by_name": "Jane Doe",
+                    "changed_at": "2024-12-08T09:15:00Z",
+                    "change_type": "update"
+                }
+            ],
+            "total_activity_logs": 12,
+            "limit": 50,
+            "offset": 0,
+            "has_more": false
+        }
+    """
+    logger.info("Fetching activity logs for incident", incident_number=incident_number, request_id=request_id)
+    result = await service.fetch_incident_activity_logs(incident_number, limit=limit, offset=offset)
+    result["request_id"] = request_id
+    return result
+
+
+@router.get(
+    "/incident/{incident_number}/logs",
+    summary="Get Incident Comments and Activity Logs (Combined)",
+)
+async def fetch_incident_logs(
+    incident_number: str,
+    limit: int = 100,
+    offset: int = 0,
+    request_id: str = Depends(_get_request_id),
+    service: ServiceNowService = Depends(get_service)
+):
+    """
+    Retrieve both comments and activity logs for a specific incident in one call.
+    
+    Combines comments/notes and activity logs (field changes) into a single response.
+    
+    Args:
+        incident_number (str): The incident number (e.g., "INC0024934")
+        limit (int): Maximum number of items to return for each category (default: 100)
+        offset (int): Pagination offset (default: 0)
+        request_id (str): The unique request identifier
+    
+    Returns:
+        dict: Dictionary containing:
+            - incident_number: The incident number
+            - incident_sys_id: The ServiceNow sys_id
+            - comments: List of comment objects
+            - activity_logs: List of activity log entries
+            - total_comments: Total comments retrieved
+            - total_activity_logs: Total activity logs retrieved
+            - limit: Requested limit
+            - offset: Requested offset
+    
+    Example:
+        GET /api/v1/servicenow/incident/INC0024934/logs?limit=50&offset=0
+        
+        Response:
+        {
+            "incident_number": "INC0024934",
+            "incident_sys_id": "a1b2c3d4e5f6...",
+            "comments": [...],
+            "activity_logs": [...],
+            "total_comments": 5,
+            "total_activity_logs": 12,
+            "limit": 50,
+            "offset": 0,
+            "request_id": "req-123..."
+        }
+    """
+    logger.info("Fetching comments and activity logs for incident", incident_number=incident_number, request_id=request_id)
+    
+    comments_result = await service.fetch_incident_comments(incident_number, limit=limit, offset=offset)
+    activity_result = await service.fetch_incident_activity_logs(incident_number, limit=limit, offset=offset)
+    
+    combined_result = {
+        "incident_number": incident_number,
+        "incident_sys_id": comments_result.get("incident_sys_id", activity_result.get("incident_sys_id", "")),
+        "comments": comments_result.get("comments", []),
+        "activity_logs": activity_result.get("activity_logs", []),
+        "total_comments": comments_result.get("total_comments", 0),
+        "total_activity_logs": activity_result.get("total_activity_logs", 0),
+        "limit": limit,
+        "offset": offset,
+        "request_id": request_id
+    }
+    
+    return combined_result
+
+
+

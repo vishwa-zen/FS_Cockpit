@@ -23,6 +23,7 @@ from app.middleware.response_wrapper import ResponseWrapperMiddleware
 from app.middleware.auth import AzureADAuthMiddleware
 from app.config.settings import get_settings, Settings
 from app.logger.log import configure_logging
+from app.db.connection import init_db, close_db
 
 # Try to configure logging at module import time using settings if available.
 # This is best-effort: don't raise if settings are incomplete during import.
@@ -151,18 +152,19 @@ class FSCockpitApplication:
         """Register shutdown event to cleanup connection pools and cache."""
         assert self._app is not None
         
-        @self._app.on_event("shutdown")
-        async def shutdown_event():
-            """Cleanup resources on application shutdown."""
-            from app.clients.base_cleint import BaseClient
-            await BaseClient.close_shared_client()
-            self.logger.info("Application shutdown complete")
-        
         @self._app.on_event("startup")
         async def startup_event():
-            """Initialize background tasks on startup."""
+            """Initialize database and background tasks on startup."""
             import asyncio
             from app.cache.memory_cache import get_cache
+            
+            # Initialize database and verify connection
+            self.logger.info("Starting database initialization")
+            db_initialized = await init_db()
+            if db_initialized:
+                self.logger.info("Database initialized successfully")
+            else:
+                self.logger.error("Database initialization failed - application may have limited functionality")
             
             async def cleanup_cache_periodically():
                 """Background task to cleanup expired cache entries."""
@@ -181,6 +183,25 @@ class FSCockpitApplication:
             if self.settings.CACHE_ENABLED:
                 asyncio.create_task(cleanup_cache_periodically())
                 self.logger.info("Cache cleanup task started", interval_seconds=self.settings.CACHE_CLEANUP_INTERVAL)
+        
+        @self._app.on_event("shutdown")
+        async def shutdown_event():
+            """Cleanup resources on application shutdown."""
+            try:
+                self.logger.info("Starting application shutdown")
+                
+                # Close database connections
+                await close_db()
+                self.logger.info("Database connections closed")
+                
+                # Close HTTP client connections
+                from app.clients.base_cleint import BaseClient
+                await BaseClient.close_shared_client()
+                self.logger.info("HTTP client connections closed")
+                
+                self.logger.info("Application shutdown complete")
+            except Exception as e:
+                self.logger.error("Error during shutdown", error=str(e), error_type=type(e).__name__)
 
     @property
     def app(self) -> FastAPI:

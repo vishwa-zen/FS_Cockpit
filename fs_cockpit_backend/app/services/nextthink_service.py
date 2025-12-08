@@ -9,6 +9,11 @@ from app.clients.nextthink_client import NextThinkClient
 from app.config.settings import get_settings
 from app.schemas.remote_action import RemoteActionDTO, RemoteActionExecuteRequest
 from app.cache.memory_cache import get_cache
+from app.db import (
+    RemoteActionWriter,
+    AuditLogWriter,
+    SessionLocal,
+)
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -248,12 +253,14 @@ class NextThinkService:
 
         return self._map_action_to_dto(raw)
 
-    async def execute_remote_action(self, request: RemoteActionExecuteRequest) -> Dict[str, Any]:
+    async def execute_remote_action(self, request: RemoteActionExecuteRequest, technician_username: Optional[str] = None) -> Dict[str, Any]:
         """
         Execute a remote action on NextThink.
+        Pushes action to database for Agentic AI and audit trail.
 
         Args:
             request (RemoteActionExecuteRequest): The action execution request
+            technician_username (str): Username of technician executing the action
 
         Returns:
             Dict[str, Any]: Execution response
@@ -275,6 +282,36 @@ class NextThinkService:
             scope=self.scope
         ) as client:
             result = await client.execute_remote_action(action_data)
+
+        # Push action to database for AI engine
+        db = SessionLocal()
+        try:
+            RemoteActionWriter.push_action(
+                db,
+                action_id=result.get("id", f"act_{request.deviceId}"),
+                action_name=request.actionType or "Unknown",
+                status=result.get("status", "pending"),
+                device_name=self._extract_device_name_from_text(request.deviceId),
+                action_type="system",
+                execution_result=str(result.get("result")) if result.get("result") else None,
+            )
+            
+            # Log audit if technician username provided
+            if technician_username:
+                AuditLogWriter.log_action(
+                    db,
+                    technician_username=technician_username,
+                    action="execute_remote_action",
+                    resource_type="remote_action",
+                    resource_id=result.get("id", f"act_{request.deviceId}"),
+                    details=f"action={request.actionType}, device={request.deviceId}",
+                )
+            
+            logger.info("Pushed remote action to DB", action_id=result.get("id"))
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error pushing action to DB", error=str(e))
+        finally:
+            db.close()
 
         return result
 

@@ -64,3 +64,8 @@ htmlcov/
 *.pfx
 secrets/
 credentials/
+
+*.pyc
+__pycache__/
+*.pyo
+*.egg-info/

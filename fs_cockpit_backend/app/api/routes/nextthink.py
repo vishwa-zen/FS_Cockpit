@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import structlog
 from app.middleware.request_id import get_request_id as _get_request_id
 from app.services.nextthink_service import NextThinkService
+from app.services.nextthink_diagnostics_service import NextThinkDiagnosticsService
 from app.services.servicenow_service import ServiceNowService
 from app.schemas.remote_action import (
     RemoteActionDTO,
@@ -12,6 +13,7 @@ from app.schemas.remote_action import (
     RemoteActionExecuteResponse
 )
 from app.schemas.recommendation import RecommendationRequest, RecommendationResponse
+from app.schemas.diagnostics import DiagnosticsRequest, ComprehensiveDiagnosticsResponse, AVAILABLE_DIAGNOSTIC_CATEGORIES
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -27,6 +29,11 @@ async def get_service():
 async def get_servicenow_service():
     """Dependency to get ServiceNowService instance."""
     return ServiceNowService()
+
+
+async def get_diagnostics_service():
+    """Dependency to get NextThinkDiagnosticsService instance."""
+    return NextThinkDiagnosticsService()
 
 
 @router.get("/health", summary="NextThink Health Check")
@@ -309,4 +316,166 @@ async def get_recommendations(
     )
     
     return response
+
+
+@router.post(
+    "/diagnostics",
+    summary="Get Device Diagnostics (Full or Partial)",
+    response_model=ComprehensiveDiagnosticsResponse,
+)
+async def get_device_diagnostics(
+    request: DiagnosticsRequest,
+    request_id: str = Depends(_get_request_id),
+    service: NextThinkDiagnosticsService = Depends(get_diagnostics_service)
+):
+    """
+    Get comprehensive device diagnostics from NextThink.
+    
+    Supports two diagnostic modes:
+    
+    **Full Diagnostics**: Retrieves all available diagnostic categories:
+    - Hardware (CPU, GPU, Memory, Disk, Battery)
+    - OS Health (Build, Uptime, Drivers, Restart Status)
+    - Security (Encryption, Antivirus, Firewall, Vulnerabilities)
+    - Compliance & Patching (Updates, Compliance Status)
+    - Incident History (Past tickets and issues)
+    - Logs (System logs and local issues)
+    - Services (Running applications and services)
+    - Network (Connectivity and interfaces)
+    
+    **Partial Diagnostics**: Select specific categories to query
+    
+    Args:
+        request (DiagnosticsRequest): 
+            - device_name: Device name (required)
+            - mode: "full" or "partial" (default: "full")
+            - categories: List of categories for partial mode (optional)
+            - include_details: Whether to include detailed info (default: True)
+    
+    Returns:
+        ComprehensiveDiagnosticsResponse: Structured diagnostics data with completeness metrics
+    
+    Examples:
+        Full diagnostics:
+        POST /api/v1/nextthink/diagnostics
+        {
+            "device_name": "CPC-vijay-BSCCU",
+            "mode": "full"
+        }
+        
+        Partial diagnostics (selected categories):
+        POST /api/v1/nextthink/diagnostics
+        {
+            "device_name": "CPC-vijay-BSCCU",
+            "mode": "partial",
+            "categories": ["hardware", "security", "compliance"]
+        }
+        
+        Available categories:
+        - hardware: CPU, GPU, Memory, Disk, Battery
+        - os_health: Build, Uptime, Drivers, Restart Status
+        - security: Encryption, Antivirus, Firewall, Vulnerabilities
+        - compliance: Patching and compliance status
+        - incident_history: Past tickets and issues
+        - logs: System logs and local issues
+        - services: Running applications and services
+        - network: Network connectivity and status
+    """
+    logger.info(
+        "Device diagnostics requested",
+        request_id=request_id,
+        device_name=request.device_name,
+        mode=request.mode,
+        categories=request.categories
+    )
+    
+    # Validate mode
+    if request.mode.lower() not in ["full", "partial"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid mode: {request.mode}. Must be 'full' or 'partial'"
+        )
+    
+    # Validate categories if partial mode
+    if request.mode.lower() == "partial" and request.categories:
+        invalid_cats = set(request.categories) - set(AVAILABLE_DIAGNOSTIC_CATEGORIES)
+        if invalid_cats:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid categories: {', '.join(invalid_cats)}. Available: {', '.join(AVAILABLE_DIAGNOSTIC_CATEGORIES)}"
+            )
+    
+    try:
+        diagnostics = await service.get_device_diagnostics(request)
+        diagnostics.__dict__['request_id'] = request_id
+        return diagnostics
+    except Exception as e:  # noqa: BLE001
+        logger.error(
+            "Error retrieving device diagnostics",
+            request_id=request_id,
+            device_name=request.device_name,
+            error=str(e)
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve diagnostics: {str(e)}"
+        ) from e
+
+
+@router.get(
+    "/diagnostics/categories",
+    summary="Get Available Diagnostic Categories",
+    response_model=dict,
+)
+async def get_diagnostic_categories(
+    request_id: str = Depends(_get_request_id)
+):
+    """
+    Get list of available diagnostic categories that can be queried.
+    
+    This is useful for understanding what categories can be selected in partial diagnostics mode.
+    
+    Returns:
+        dict: Available categories and their descriptions
+        
+    Example:
+        GET /api/v1/nextthink/diagnostics/categories
+        
+        Response:
+        {
+            "request_id": "req-123",
+            "total_categories": 8,
+            "categories": [
+                {
+                    "name": "hardware",
+                    "description": "CPU, GPU, Memory, Disk, Battery diagnostics"
+                },
+                ...
+            ]
+        }
+    """
+    logger.info("Fetching diagnostic categories", request_id=request_id)
+    
+    category_descriptions = {
+        "hardware": "CPU, GPU, Memory, Disk, Battery diagnostics (last 24 hours for CPU/GPU)",
+        "os_health": "Operating System build, uptime, drivers, restart status",
+        "security": "Encryption, antivirus, firewall, vulnerability status",
+        "compliance": "Patch status, compliance score, policy violations",
+        "incident_history": "Past ServiceNow tickets, recurring issues",
+        "logs": "System event logs, application crashes, BSOD incidents",
+        "services": "Running services, processes, resource consumption",
+        "network": "Network connectivity, interfaces, DNS, latency"
+    }
+    
+    return {
+        "request_id": request_id,
+        "total_categories": len(AVAILABLE_DIAGNOSTIC_CATEGORIES),
+        "categories": [
+            {
+                "name": cat,
+                "description": category_descriptions.get(cat, "Diagnostics for this category")
+            }
+            for cat in AVAILABLE_DIAGNOSTIC_CATEGORIES
+        ]
+    }
 
