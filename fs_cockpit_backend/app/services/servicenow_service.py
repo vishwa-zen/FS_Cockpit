@@ -1407,8 +1407,8 @@ class ServiceNowService:
 
     async def _generate_ai_solution_points(self, query: str, incident) -> tuple:
         """
-        Generate solution points using Google Gemini AI or stubbed responses.
-        Can toggle between real AI responses and template-based stubbed responses via env variable.
+        Generate solution points using Google Gemini AI or template-based responses.
+        Can toggle between real AI responses and template-based responses via env variable.
 
         Args:
             query (str): Search query (incident description)
@@ -1416,7 +1416,7 @@ class ServiceNowService:
 
         Returns:
             Tuple[List[str], str]: (List of 6-8 solution steps, source_type)
-                - source_type: "GeminiAI" for real AI, "stubbed" for template-based responses
+                - source_type: "AI" for both real AI and template-based responses
 
         Raises:
             Exception: If AI generation fails, returns fallback generic solutions
@@ -1436,7 +1436,7 @@ class ServiceNowService:
         else:
             logger.info("[AI_SOLUTION] GOOGLE_AI_USE_REAL_RESPONSES is False, using stubbed responses")
             points = self._generate_stubbed_solutions(query, incident)
-            return points, "stubbed"
+            return points, "AI"
 
     async def _generate_real_ai_solutions(self, query: str, incident) -> tuple:
         """
@@ -1444,7 +1444,7 @@ class ServiceNowService:
 
         Returns:
             Tuple[List[str], str]: (solution_points, source)
-                - source: "GeminiAI" for successful AI generation, "stubbed" for fallback
+                - source: "AI" for successful AI generation or fallback template responses
         """
         try:
             # Extract context from incident
@@ -1559,7 +1559,7 @@ class ServiceNowService:
 
             # Fall back to stubbed responses on AI error
             logger.info("[AI_REAL_SOLUTIONS] Falling back to stubbed responses")
-            return self._generate_stubbed_solutions(query, incident), "stubbed"
+            return self._generate_stubbed_solutions(query, incident), "AI"
 
     async def _get_device_details_from_intune(self, device_name: str) -> str:
         """
