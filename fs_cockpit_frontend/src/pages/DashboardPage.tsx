@@ -9,42 +9,44 @@ import {
   SendIcon,
   Leaf,
 } from "lucide-react";
-import TicketsList from "../shared/TicketsList";
-import TicketDetailsView from "../shared/TicketDetailsView";
-import { useState, useEffect } from "react";
+import { TicketsList, TicketDetailsPanel } from "../components/tickets";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "../../../../hooks/useAuth";
-import { useTickets } from "../shared/TicketsContext";
-import { SystemStatusBar } from "../../../../components/SystemStatusBar";
-import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
-import { Button } from "../../../../components/ui/button";
+import { useAuth } from "../hooks/useAuth";
+import { useTickets } from "../context";
+import { SystemStatusBar } from "../components/SystemStatusBar";
+import { Avatar, AvatarFallback } from "../components/ui/avatar";
+import { Button } from "../components/ui/button";
 import {
   CockpitEmptyStateIcon,
   CopilotIcon,
   FSCockpitLogoIcon,
   MyTicketsIcon,
-} from "../../../../components/icons";
+} from "../components/icons";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../../../../components/ui/card";
-import { Input } from "../../../../components/ui/input";
+} from "../components/ui/card";
+import { Input } from "../components/ui/input";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "../../../../components/ui/tabs";
+} from "../components/ui/tabs";
 
-export const HomeSearchSection = (): JSX.Element => {
+export const DashboardPage = (): JSX.Element => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const { user, logout } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [myTicketsSearchQuery, setMyTicketsSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"ticket" | "priority">("ticket");
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
   const {
     myTickets,
     searchResults,
@@ -91,7 +93,7 @@ export const HomeSearchSection = (): JSX.Element => {
     }
   }, [id, setSelectedTicketId]);
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (searchQuery.trim()) {
       try {
         await searchTickets(searchQuery, searchType);
@@ -101,12 +103,60 @@ export const HomeSearchSection = (): JSX.Element => {
     } else {
       clearSearchResults();
     }
-  };
+  }, [searchQuery, searchType, searchTickets, clearSearchResults]);
 
-  const handleTicketClick = (ticketId: string) => {
-    // Navigate to /home/:id to show ticket details on the right side
-    navigate(`/home/${ticketId}`);
-  };
+  const handleTicketClick = useCallback(
+    (ticketId: string) => {
+      // Navigate to /home/:id to show ticket details on the right side
+      navigate(`/home/${ticketId}`);
+    },
+    [navigate]
+  );
+
+  // Filter and sort My Tickets based on search query and sort option
+  const filteredAndSortedTickets = useMemo(() => {
+    let filtered = myTickets;
+
+    // Apply search filter
+    if (myTicketsSearchQuery.trim()) {
+      const query = myTicketsSearchQuery.toLowerCase();
+      filtered = myTickets.filter(
+        (ticket) =>
+          ticket.id.toLowerCase().includes(query) ||
+          ticket.title.toLowerCase().includes(query) ||
+          ticket.device?.toLowerCase().includes(query) ||
+          ticket.status.toLowerCase().includes(query) ||
+          ticket.priority?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "ticket") {
+        return a.id.localeCompare(b.id);
+      } else {
+        // Sort by priority: High > Medium > Low
+        const priorityOrder: { [key: string]: number } = {
+          High: 1,
+          Medium: 2,
+          Low: 3,
+        };
+        const aPriority = priorityOrder[a.priority || "Low"] || 99;
+        const bPriority = priorityOrder[b.priority || "Low"] || 99;
+        return aPriority - bPriority;
+      }
+    });
+
+    return sorted;
+  }, [myTickets, myTicketsSearchQuery, sortBy]);
+
+  // Auto-select first ticket from sorted list when tickets are loaded and no ticket is selected
+  useEffect(() => {
+    if (!id && filteredAndSortedTickets.length > 0 && !isLoading) {
+      const firstTicketId = filteredAndSortedTickets[0].id;
+      navigate(`/home/${firstTicketId}`, { replace: true });
+    }
+  }, [id, filteredAndSortedTickets, isLoading, navigate]);
 
   const handleCopilotTicketClick = (ticketId: string) => {
     setCopilotSelectedTicketId(ticketId);
@@ -382,24 +432,24 @@ export const HomeSearchSection = (): JSX.Element => {
   };
 
   return (
-    <section className="relative w-full h-screen flex flex-col bg-[linear-gradient(135deg,rgba(248,250,252,1)_0%,rgba(239,246,255,0.3)_50%,rgba(241,245,249,1)_100%),linear-gradient(0deg,rgba(255,255,255,1)_0%,rgba(255,255,255,1)_100%)]">
-      <header className="flex items-center justify-between px-8 pt-4 pb-0 h-[73px] bg-[#ffffffcc] border-b-[0.67px] border-[#e1e8f0] flex-shrink-0">
-        <div className="flex items-start gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:0ms]">
-          <div className="w-14 h-14 md:w-16 md:h-16 flex items-center justify-center">
+    <section className="relative w-full h-screen flex flex-col bg-[#F8F9FB]">
+      <header className="flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8 pt-3 sm:pt-4 pb-0 h-[60px] sm:h-[66px] md:h-[73px] bg-[#ffffffcc] border-b-[0.67px] border-[#e1e8f0] flex-shrink-0">
+        <div className="flex items-start gap-1.5 sm:gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:0ms]">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 flex items-center justify-center">
             <FSCockpitLogoIcon />
           </div>
           <div className="hidden sm:flex flex-col justify-between py-0.5">
-            <h1 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm md:text-base leading-5 md:leading-6">
+            <h1 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-xs sm:text-sm md:text-base leading-4 sm:leading-5 md:leading-6">
               FS Cockpit
             </h1>
-            <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
+            <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-[10px] sm:text-xs leading-3 sm:leading-4">
               Diagnostics Platform
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:200ms]">
-          <span className="hidden md:inline [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4">
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:200ms]">
+          <span className="hidden lg:inline [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4 truncate max-w-[200px]">
             {user?.email || user?.username || "testadmin@ntt.com"}
           </span>
 
@@ -407,8 +457,8 @@ export const HomeSearchSection = (): JSX.Element => {
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="relative focus:outline-none z-50"
           >
-            <Avatar className="w-8 h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
-              <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-xs bg-transparent">
+            <Avatar className="w-7 h-7 sm:w-8 sm:h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
+              <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[10px] sm:text-xs bg-transparent">
                 {(
                   (user?.name && user.name.charAt(0)) ||
                   (user?.email && user.email.charAt(0)) ||
@@ -427,12 +477,12 @@ export const HomeSearchSection = (): JSX.Element => {
               aria-hidden="true"
               onClick={() => setShowUserMenu(false)}
             />
-            <div className="fixed top-[73px] right-8 w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
-              <div className="px-4 py-2 border-b border-[#e1e8f0]">
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
+            <div className="fixed top-[60px] sm:top-[66px] md:top-[73px] right-3 sm:right-4 md:right-6 lg:right-8 w-44 sm:w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
+              <div className="px-3 sm:px-4 py-2 border-b border-[#e1e8f0]">
+                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-xs sm:text-sm truncate">
                   {user?.name || "Test Admin"}
                 </p>
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs">
+                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-[10px] sm:text-xs truncate">
                   {user?.email || user?.username || "testadmin@ntt.com"}
                 </p>
               </div>
@@ -449,10 +499,10 @@ export const HomeSearchSection = (): JSX.Element => {
                     navigate("/login");
                   }
                 }}
-                className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
+                className="w-full px-3 sm:px-4 py-2 text-left hover:bg-[#F8F9FB] transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
               >
-                <LogOutIcon className="w-4 h-4 text-[#61738d]" />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
+                <LogOutIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#61738d]" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-xs sm:text-sm">
                   Sign Out
                 </span>
               </button>
@@ -461,12 +511,12 @@ export const HomeSearchSection = (): JSX.Element => {
         )}
       </header>
 
-      <div className="flex flex-1 bg-slate-50 overflow-hidden">
+      <div className="flex flex-1 bg-[#F8F9FB] overflow-hidden">
         {/* Show sidebar on desktop, hide on mobile when ticket is selected */}
         <aside
           className={`${
             selectedTicketId ? "hidden md:flex" : "flex"
-          } w-full md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col`}
+          } w-full sm:w-full md:w-80 lg:w-[360px] xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col`}
         >
           <Tabs
             defaultValue={activeTab || "unified-search"}
@@ -498,7 +548,7 @@ export const HomeSearchSection = (): JSX.Element => {
               value="unified-search"
               className="mt-0 p-0 flex-1 overflow-y-auto"
             >
-              <div className="p-3 md:p-4 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:600ms]">
+              <div className="p-2 sm:p-3 md:p-4 lg:p-4 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:600ms]">
                 <Card className="border-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
                   <CardHeader
                     className={`h-[65px] py-3 px-4 border-b-[0.67px] border-[#e1e8f0] flex flex-col gap-0.5 justify-between ${
@@ -540,14 +590,66 @@ export const HomeSearchSection = (): JSX.Element => {
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center gap-2">
-                          <MyTicketsIcon />
-                          <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
-                            My Tickets
-                          </CardTitle>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <MyTicketsIcon />
+                            <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
+                              My Tickets
+                            </CardTitle>
+                          </div>
+                          <div className="relative">
+                            <button
+                              onClick={() =>
+                                setShowSortDropdown(!showSortDropdown)
+                              }
+                              className="text-xs text-[#3B82F6] hover:underline font-sans flex items-center gap-1"
+                            >
+                              Sort:{" "}
+                              {sortBy === "ticket" ? "Ticket #" : "Priority"}
+                              <ChevronDownIcon className="w-3 h-3" />
+                            </button>
+                            {showSortDropdown && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setShowSortDropdown(false)}
+                                />
+                                <div className="absolute top-full right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
+                                  <button
+                                    onClick={() => {
+                                      setSortBy("ticket");
+                                      setShowSortDropdown(false);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-xs hover:bg-[#F8F9FB] transition-colors ${
+                                      sortBy === "ticket"
+                                        ? "bg-[#EFF6FF] text-[#3B82F6]"
+                                        : ""
+                                    }`}
+                                  >
+                                    Ticket Number
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSortBy("priority");
+                                      setShowSortDropdown(false);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-xs hover:bg-[#F8F9FB] transition-colors ${
+                                      sortBy === "priority"
+                                        ? "bg-[#EFF6FF] text-[#3B82F6]"
+                                        : ""
+                                    }`}
+                                  >
+                                    Priority
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                         <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
-                          Quick access to tickets assigned to you.
+                          {filteredAndSortedTickets.length} of{" "}
+                          {myTickets.length} ticket
+                          {myTickets.length !== 1 ? "s" : ""}
                         </CardDescription>
                       </>
                     )}
@@ -596,7 +698,7 @@ export const HomeSearchSection = (): JSX.Element => {
                       </div>
                     ) : (
                       <TicketsList
-                        tickets={myTickets}
+                        tickets={filteredAndSortedTickets}
                         selectedTicketId={selectedTicketId || undefined}
                         onTicketClick={handleTicketClick}
                       />
@@ -717,9 +819,9 @@ export const HomeSearchSection = (): JSX.Element => {
             </TabsContent>
           </Tabs>
 
-          <div className="flex-shrink-0 pt-3 px-3 pb-3 md:pt-4 md:px-4 md:pb-4 bg-white border-t-[0.67px] border-[#e1e8f0]">
+          <div className="flex-shrink-0 pt-2 px-2 pb-2 sm:pt-3 sm:px-3 sm:pb-3 md:pt-4 md:px-4 md:pb-4 bg-white border-t-[0.67px] border-[#e1e8f0]">
             {activeTab === "copilot" ? (
-              <div className="flex items-center gap-2 md:gap-3 w-full">
+              <div className="flex items-center gap-2 sm:gap-2 md:gap-3 w-full">
                 <div className="flex-1 flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border-[0.67px] border-[#e1e8f0] shadow-[0px_1px_2px_-1px_#0000001a,0px_1px_3px_#0000001a]">
                   <Input
                     value={copilotMessage}
@@ -739,67 +841,18 @@ export const HomeSearchSection = (): JSX.Element => {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 md:gap-3 w-full">
-                <div className="flex-1 flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border-[0.67px] border-[#e1e8f0] shadow-[0px_1px_2px_-1px_#0000001a,0px_1px_3px_#0000001a]">
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    placeholder={`Enter ${searchType.toLowerCase()} name or number...`}
-                    className="border-0 shadow-none p-0 h-auto [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-xs placeholder:text-[#717182] focus-visible:ring-0"
-                  />
-                  <div className="relative">
-                    <Button
-                      onClick={() => {
-                        setShowSearchDropdown(!showSearchDropdown);
-                      }}
-                      className="h-auto px-4 py-2 rounded-[10px] shadow-[0px_6px_18px_#1f6feb1f] bg-[linear-gradient(0deg,rgba(31,111,235,1)_0%,rgba(74,163,255,1)_100%)] hover:opacity-90 transition-opacity"
-                    >
-                      <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[13.3px] leading-normal">
-                        {searchType}
-                      </span>
-                      <ChevronDownIcon className="w-4 h-4 ml-2" />
-                    </Button>
-
-                    {showSearchDropdown && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setShowSearchDropdown(false)}
-                        />
-                        <div className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
-                          {(["User", "Device", "Ticket"] as const).map(
-                            (type) => (
-                              <button
-                                key={type}
-                                onClick={() => {
-                                  setSearchType(type);
-                                  setShowSearchDropdown(false);
-                                }}
-                                className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
-                                  searchType === type
-                                    ? "bg-blue-50 text-[#1347e5]"
-                                    : ""
-                                }`}
-                              >
-                                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm">
-                                  {type}
-                                </span>
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </>
-                    )}
+              <div className="flex items-center gap-2 sm:gap-2 md:gap-3 w-full">
+                <div className="flex-1 flex items-center justify-between gap-2 sm:gap-3 py-2 sm:py-2.5 px-3 sm:px-4 bg-[#EFF6FF] rounded-lg border-[0.67px] border-[#E2E8F0] shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1">
+                    <SearchIcon className="w-5 h-5 text-[#61738D]" />
+                    <Input
+                      value={myTicketsSearchQuery}
+                      onChange={(e) => setMyTicketsSearchQuery(e.target.value)}
+                      placeholder="Search my tickets by number, title, device..."
+                      className="border-0 shadow-none p-0 h-auto bg-transparent [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-sm placeholder:text-[#717182] focus-visible:ring-0"
+                    />
                   </div>
                 </div>
-                <Button
-                  size="icon"
-                  onClick={handleSearch}
-                  className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-colors shadow-lg"
-                >
-                  <SearchIcon className="w-5 h-5 text-white" />
-                </Button>
               </div>
             )}
           </div>
@@ -808,7 +861,7 @@ export const HomeSearchSection = (): JSX.Element => {
         <main
           className={`${
             selectedTicketId ? "flex" : "hidden md:flex"
-          } flex-1 bg-slate-50 min-h-[552px] overflow-hidden`}
+          } flex-1 bg-[#F8F9FB] min-h-[400px] sm:min-h-[500px] md:min-h-[552px] overflow-y-auto`}
         >
           {activeTab === "copilot" ? (
             copilotSelectedTicketId ? (
@@ -817,10 +870,7 @@ export const HomeSearchSection = (): JSX.Element => {
                   (t) => t.id === copilotSelectedTicketId
                 );
                 return selectedTicket ? (
-                  <TicketDetailsView
-                    ticket={selectedTicket}
-                    showSustainabilityScore={true}
-                  />
+                  <TicketDetailsPanel ticket={selectedTicket} />
                 ) : (
                   <div className="flex items-center justify-center w-full h-full">
                     <div className="flex flex-col items-center justify-center gap-8 translate-y-[-1rem]">
@@ -864,7 +914,7 @@ export const HomeSearchSection = (): JSX.Element => {
 
               // If ticket found, show details
               if (selectedTicket) {
-                return <TicketDetailsView ticket={selectedTicket} />;
+                return <TicketDetailsPanel ticket={selectedTicket} />;
               }
 
               // If error exists and no tickets loaded, backend is unavailable

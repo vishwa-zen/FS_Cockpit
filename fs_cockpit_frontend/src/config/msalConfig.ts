@@ -17,7 +17,7 @@ export const msalConfig: Configuration = {
         ? window.location.origin
         : "http://localhost:3000",
     knownAuthorities: ["zenpoc.b2clogin.com"],
-    navigateToLoginRequestUrl: false,
+    navigateToLoginRequestUrl: false, // Critical: prevents redirect to login page after auth
   },
   cache: {
     cacheLocation: "sessionStorage",
@@ -28,7 +28,7 @@ export const msalConfig: Configuration = {
     windowHashTimeout: 60000,
     iframeHashTimeout: 6000,
     loadFrameTimeout: 0,
-    asyncPopups: false,
+    asyncPopups: true, // CRITICAL: Set to true to prevent popup blocking - opens popup immediately on user click
     loggerOptions: {
       loggerCallback: (level, message, containsPii) => {
         if (containsPii) {

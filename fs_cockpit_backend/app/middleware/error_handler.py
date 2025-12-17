@@ -1,24 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
- # ...existing code...
-
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
-from starlette.middleware.base import BaseHTTPMiddleware
 
 import structlog
-from app.logger.log import get_logger, get_bound_request_id
-from app.middleware.request_id import get_request_id as _get_request_id
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from app.exceptions.custom_exceptions import (
-    ExternalServiceError,
-    ServiceTimeoutError,
-    ServiceConnectionError,
-    CredentialError,
-    ConfigurationError,
     CircuitBreakerOpenError,
+    ConfigurationError,
+    CredentialError,
+    ExternalServiceError,
+    ServiceConnectionError,
+    ServiceTimeoutError,
 )
+from app.logger.log import get_bound_request_id, get_logger
 
 logger = structlog.get_logger(__name__)
 
@@ -63,7 +60,12 @@ class GlobalErrorHandlerMiddleware(BaseHTTPMiddleware):
                 "timestamp": _now_iso(),
                 "request_id": request_id,
             }
-            logger.error("timeout.error", service=exc.service, timeout=exc.timeout_seconds, request_id=request_id)
+            logger.error(
+                "timeout.error",
+                service=exc.service,
+                timeout=exc.timeout_seconds,
+                request_id=request_id,
+            )
             return JSONResponse(status_code=504, content=body)
         except ServiceConnectionError as exc:
             body = {
@@ -73,7 +75,13 @@ class GlobalErrorHandlerMiddleware(BaseHTTPMiddleware):
                 "timestamp": _now_iso(),
                 "request_id": request_id,
             }
-            logger.error("connection.error", service=exc.service, url=exc.url, request_id=request_id, details=exc.details)
+            logger.error(
+                "connection.error",
+                service=exc.service,
+                url=exc.url,
+                request_id=request_id,
+                details=exc.details,
+            )
             return JSONResponse(status_code=503, content=body)
         except ExternalServiceError as exc:
             status = exc.status_code or 502
@@ -84,7 +92,13 @@ class GlobalErrorHandlerMiddleware(BaseHTTPMiddleware):
                 "timestamp": _now_iso(),
                 "request_id": request_id,
             }
-            logger.error("external.service.error", service=exc.service, status=status, request_id=request_id, error=exc.message)
+            logger.error(
+                "external.service.error",
+                service=exc.service,
+                status=status,
+                request_id=request_id,
+                error=exc.message,
+            )
             return JSONResponse(status_code=status, content=body)
         except CredentialError as exc:
             body = {

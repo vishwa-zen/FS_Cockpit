@@ -1,1 +1,0 @@
-export { HomeSearchSection } from "./HomeSearchSection";

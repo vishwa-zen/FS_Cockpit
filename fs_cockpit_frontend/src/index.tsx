@@ -1,15 +1,43 @@
 import { MsalProvider } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
-import { StrictMode } from "react";
+import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { msalConfig } from "./config/msalConfig";
-import { TicketsProvider } from "./screens/Frame/sections/shared/TicketsContext";
-import { SignInSection } from "./screens/Frame/sections/SignInSection";
-import { HomeSearchSection } from "./screens/Frame/sections/HomeSearchSection";
-import { IssueSearchSection } from "./screens/Frame/sections/IssueSearchSection";
-import { IssueDetailsSection } from "./screens/Frame/sections/IssueDetailsSection";
-import { ProtectedRoute } from "./components/ProtectedRoute";
+import { TicketsProvider } from "./context";
+import { ProtectedRoute } from "./components/auth";
+
+// Lazy load route components for code splitting
+const LoginPage = lazy(() =>
+  import("./pages/LoginPage").then((module) => ({
+    default: module.LoginPage,
+  }))
+);
+const DashboardPage = lazy(() =>
+  import("./pages/DashboardPage").then((module) => ({
+    default: module.DashboardPage,
+  }))
+);
+const SearchPage = lazy(() =>
+  import("./pages/SearchPage").then((module) => ({
+    default: module.SearchPage,
+  }))
+);
+const TicketDetailsPage = lazy(() =>
+  import("./pages/TicketDetailsPage").then((module) => ({
+    default: module.TicketDetailsPage,
+  }))
+);
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen w-screen bg-[#F8FAFCFF]">
+    <div className="flex flex-col items-center gap-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3B82F6]"></div>
+      <p className="text-[#61738D] text-sm">Loading...</p>
+    </div>
+  </div>
+);
 
 const msalInstance = new PublicClientApplication(msalConfig);
 
@@ -17,8 +45,6 @@ const msalInstance = new PublicClientApplication(msalConfig);
 msalInstance
   .initialize()
   .then(() => {
-    console.log("[Auth] MSAL initialized in popup-only mode");
-
     const rootElement = document.getElementById("app");
     if (!rootElement) {
       throw new Error("Root element not found");
@@ -29,42 +55,44 @@ msalInstance
         <MsalProvider instance={msalInstance}>
           <TicketsProvider>
             <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Navigate to="/login" replace />} />
-                <Route path="/login" element={<SignInSection />} />
-                <Route
-                  path="/home"
-                  element={
-                    <ProtectedRoute>
-                      <HomeSearchSection />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/home/:id"
-                  element={
-                    <ProtectedRoute>
-                      <HomeSearchSection />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/search"
-                  element={
-                    <ProtectedRoute>
-                      <IssueSearchSection />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/issue/:id"
-                  element={
-                    <ProtectedRoute>
-                      <IssueDetailsSection />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/login" replace />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route
+                    path="/home"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/home/:id"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/search"
+                    element={
+                      <ProtectedRoute>
+                        <SearchPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/issue/:id"
+                    element={
+                      <ProtectedRoute>
+                        <TicketDetailsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </Suspense>
             </BrowserRouter>
           </TicketsProvider>
         </MsalProvider>

@@ -1,10 +1,13 @@
 """Data Transfer Objects (DTOs) for Intune Device records."""
-from typing import Optional, List
+
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 
 class DeviceDTO(BaseModel):
     """Data Transfer Object representing an Intune Managed Device."""
+
     deviceId: str
     deviceName: Optional[str] = None
     userPrincipalName: Optional[str] = None
@@ -23,4 +26,5 @@ class DeviceDTO(BaseModel):
 
 class DeviceListResponse(BaseModel):
     """Response model containing a list of devices."""
+
     devices: List[DeviceDTO]

@@ -1,9 +1,11 @@
-from pydantic import BaseModel
 from typing import List
+
+from pydantic import BaseModel
 
 
 class SolutionSummaryResponse(BaseModel):
     """Response model for solution summary from KB articles or Google search."""
+
     incident_number: str
     summary_points: List[str]
     source: str  # 'kb_articles' or 'google_search'

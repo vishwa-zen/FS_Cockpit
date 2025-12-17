@@ -25,7 +25,7 @@ const statusMap: Record<string, string> = {
 };
 
 export function formatPriority(priority?: string | number): string {
-  if (priority == null) return "N/A";
+  if (priority == null) return "Not Available";
   let raw = String(priority).trim();
   // Strip leading numeric code like "1 - High" or "2-Medium"
   raw = raw.replace(/^\d+\s*-\s*/g, "");
@@ -44,7 +44,7 @@ export function formatPriority(priority?: string | number): string {
 }
 
 export function formatStatus(status?: string | number): string {
-  if (status == null) return "N/A";
+  if (status == null) return "Not Available";
   const raw = String(status).trim();
   if (!/^\d+$/.test(raw)) return raw;
   return statusMap[raw] || raw;

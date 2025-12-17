@@ -1,9 +1,11 @@
 """API routes for Intune integration."""
-from fastapi import APIRouter, Depends, HTTPException
+
 import structlog
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.middleware.request_id import get_request_id as _get_request_id
-from app.services.intune_service import IntuneService
 from app.schemas.device import DeviceDTO, DeviceListResponse
+from app.services.intune_service import IntuneService
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -15,10 +17,10 @@ async def get_service():
     """Dependency to get IntuneService instance."""
     return IntuneService()
 
+
 @router.get("/health", summary="Intune Health Check")
 async def intune_health_check(
-    request_id: str = Depends(_get_request_id),
-    service: IntuneService = Depends(get_service)
+    request_id: str = Depends(_get_request_id), service: IntuneService = Depends(get_service)
 ):
     """
     Health check endpoint for Intune integration.
@@ -32,12 +34,11 @@ async def intune_health_check(
     result = await service.health_check()
     result["request_id"] = request_id
     return result
-    
-    
+
+
 @router.post("/authenticate", summary="Authenticate with Intune API")
 async def intune_authenticate(
-    request_id: str = Depends(_get_request_id),
-    service: IntuneService = Depends(get_service)
+    request_id: str = Depends(_get_request_id), service: IntuneService = Depends(get_service)
 ):
     """
     Authenticate with the Intune API.
@@ -58,10 +59,7 @@ async def intune_authenticate(
     summary="Get Devices by User Email",
     response_model=DeviceListResponse,
 )
-async def fetch_devices_by_email(
-    email: str,
-    service: IntuneService = Depends(get_service)
-):
+async def fetch_devices_by_email(email: str, service: IntuneService = Depends(get_service)):
     """
     Retrieve all devices associated with a user's email (UPN).
 
@@ -81,10 +79,7 @@ async def fetch_devices_by_email(
     summary="Get Devices by Device Name",
     response_model=DeviceListResponse,
 )
-async def fetch_devices_by_name(
-    device_name: str,
-    service: IntuneService = Depends(get_service)
-):
+async def fetch_devices_by_name(device_name: str, service: IntuneService = Depends(get_service)):
     """
     Retrieve devices by device name.
 
@@ -104,10 +99,7 @@ async def fetch_devices_by_name(
     summary="Get Device by ID",
     response_model=DeviceDTO,
 )
-async def fetch_device_by_id(
-    device_id: str,
-    service: IntuneService = Depends(get_service)
-):
+async def fetch_device_by_id(device_id: str, service: IntuneService = Depends(get_service)):
     """
     Retrieve a specific device by its Intune device ID.
 

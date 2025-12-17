@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
 from app.schemas.incident import IncidentDTO
 
 
@@ -18,7 +19,7 @@ class IncidentUtils:
     @staticmethod
     def extract_reference_field(val) -> tuple[Optional[str], Optional[str]]:
         """Extract both value (sys_id) and display_value (name) from a ServiceNow reference field.
-        
+
         Returns:
             tuple: (value/sys_id, display_value/name)
         """
@@ -46,7 +47,12 @@ class IncidentUtils:
             return datetime.fromisoformat(val)
         except (ValueError, TypeError):
             pass
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        for fmt in (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S.%f",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S.%f",
+        ):
             try:
                 return datetime.strptime(val, fmt)
             except (ValueError, TypeError):
@@ -57,6 +63,8 @@ class IncidentUtils:
     def sort_dtos_by_opened_at(dtos: List[IncidentDTO]) -> List[IncidentDTO]:
         """Sort a list of IncidentDTO by their openedAt (newest first)."""
         try:
-            return sorted(dtos, key=lambda d: IncidentUtils.parse_opened_at(d.openedAt), reverse=True)
+            return sorted(
+                dtos, key=lambda d: IncidentUtils.parse_opened_at(d.openedAt), reverse=True
+            )
         except (ValueError, TypeError):
             return dtos

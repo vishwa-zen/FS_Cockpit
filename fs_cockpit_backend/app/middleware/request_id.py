@@ -1,13 +1,13 @@
 from __future__ import annotations
 
- # ...existing code...
-
 import uuid
 from typing import Callable, Optional
+
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
+
 from app.logger.log import bind_request_id, clear_request_context, get_logger
 
 
@@ -31,7 +31,11 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
 
         bind_request_id(request_id)
-        get_logger().debug("request_id.assigned", request_id=request_id, from_header=("X-Request-ID" in request.headers))
+        get_logger().debug(
+            "request_id.assigned",
+            request_id=request_id,
+            from_header=("X-Request-ID" in request.headers),
+        )
 
         response = await call_next(request)
         if "X-Request-ID" not in response.headers:
@@ -49,6 +53,7 @@ def get_request_id(request: Request) -> Optional[str]:
     if not request_id:
         # fallback to bound structlog contextvar
         from app.logger.log import get_bound_request_id
+
         request_id = get_bound_request_id()
     return request_id
 

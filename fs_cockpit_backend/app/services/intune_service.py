@@ -1,19 +1,21 @@
 """
-    Intune Service Module
-    This module provides functionalities to interact with Microsoft Intune via Graph API.
+Intune Service Module
+This module provides functionalities to interact with Microsoft Intune via Graph API.
 """
+
 from typing import List, Optional
+
 import structlog
+
+from app.cache.memory_cache import get_cache
 from app.clients.intune_client import IntuneClient
 from app.config.settings import get_settings
-from app.schemas.device import DeviceDTO
-from app.cache.memory_cache import get_cache
 from app.db import (
     DeviceWriter,
-    SyncHistoryWriter,
-    AuditLogWriter,
     SessionLocal,
+    SyncHistoryWriter,
 )
+from app.schemas.device import DeviceDTO
 
 # logging configuration
 logger = structlog.get_logger(__name__)
@@ -63,14 +65,16 @@ class IntuneService:
         Returns:
             dict: Health status and connection details
         """
-        logger.debug("Performing Intune health check", auth_url=self.base_url, tenant_id=self.tenant_id)
-        
+        logger.debug(
+            "Performing Intune health check", auth_url=self.base_url, tenant_id=self.tenant_id
+        )
+
         client = IntuneClient(
             graph_base_url="",  # Not needed for health check
             tenant_id=self.tenant_id,
             client_id=self.client_id,
             client_secret=self.client_secret,
-            auth_base_url=self.base_url
+            auth_base_url=self.base_url,
         )
         return await client.health_check()
 
@@ -82,21 +86,21 @@ class IntuneService:
             dict: Authentication status and details
         """
         logger.debug("Authenticating with Microsoft Graph", tenant_id=self.tenant_id)
-        
+
         client = IntuneClient(
             graph_base_url="",  # Not needed for authenticate
             tenant_id=self.tenant_id,
             client_id=self.client_id,
             client_secret=self.client_secret,
-            auth_base_url=self.base_url
+            auth_base_url=self.base_url,
         )
         result = await client.authenticate()
-        
+
         # Add additional service-level details
         if result.get("status") == "authenticated":
             result["scope"] = self.scope
             result["grant_type"] = self.grant_type
-        
+
         return result
 
     async def fetch_devices_by_email(self, email: str) -> List[DeviceDTO]:
@@ -117,20 +121,28 @@ class IntuneService:
             if cached_devices is not None:
                 logger.debug("Cache hit for devices by email", email=email)
                 return cached_devices
-        
-        logger.debug("Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id)
 
-        async with IntuneClient(self.graph_url, self.tenant_id, self.client_id, self.client_secret, auth_base_url=self.base_url) as client:
+        logger.debug(
+            "Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id
+        )
+
+        async with IntuneClient(
+            self.graph_url,
+            self.tenant_id,
+            self.client_id,
+            self.client_secret,
+            auth_base_url=self.base_url,
+        ) as client:
             raw = await client.fetch_devices_by_user_email(email)
 
         devices = raw.get("value", [])
         dtos: List[DeviceDTO] = [self._map_device_to_dto(d) for d in devices]
-        
+
         # Cache the result
         if self.cache:
             self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
             logger.debug("Cached devices by email", email=email, count=len(dtos))
-        
+
         return dtos
 
     async def fetch_devices_by_name(self, device_name: str) -> List[DeviceDTO]:
@@ -152,15 +164,23 @@ class IntuneService:
             if cached_devices is not None:
                 logger.debug("Cache hit for devices by name", device_name=device_name)
                 return cached_devices
-        
-        logger.debug("Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id)
 
-        async with IntuneClient(self.graph_url, self.tenant_id, self.client_id, self.client_secret, auth_base_url=self.base_url) as client:
+        logger.debug(
+            "Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id
+        )
+
+        async with IntuneClient(
+            self.graph_url,
+            self.tenant_id,
+            self.client_id,
+            self.client_secret,
+            auth_base_url=self.base_url,
+        ) as client:
             raw = await client.fetch_device_by_name(device_name)
 
         devices = raw.get("value", [])
         dtos: List[DeviceDTO] = [self._map_device_to_dto(d) for d in devices]
-        
+
         # Push devices to database for AI engine
         db = SessionLocal()
         try:
@@ -175,7 +195,7 @@ class IntuneService:
                     is_compliant=(device.complianceState == "Compliant"),
                     is_managed=True,
                 )
-            
+
             # Log sync
             SyncHistoryWriter.push_sync_record(
                 db,
@@ -188,12 +208,12 @@ class IntuneService:
             logger.error("Error pushing devices to DB", error=str(e))
         finally:
             db.close()
-        
+
         # Cache the result
         if self.cache:
             self.cache.set(cache_key, dtos, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
             logger.debug("Cached devices by name", device_name=device_name, count=len(dtos))
-        
+
         return dtos
 
     async def fetch_device_by_id(self, device_id: str) -> Optional[DeviceDTO]:
@@ -214,20 +234,28 @@ class IntuneService:
             if cached_device is not None:
                 logger.debug("Cache hit for device by ID", device_id=device_id)
                 return cached_device
-        
-        logger.debug("Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id)
 
-        async with IntuneClient(self.graph_url, self.tenant_id, self.client_id, self.client_secret, auth_base_url=self.base_url) as client:
+        logger.debug(
+            "Connecting to Microsoft Graph", graph_url=self.graph_url, tenant_id=self.tenant_id
+        )
+
+        async with IntuneClient(
+            self.graph_url,
+            self.tenant_id,
+            self.client_id,
+            self.client_secret,
+            auth_base_url=self.base_url,
+        ) as client:
             raw = await client.fetch_device_by_id(device_id)
 
         if not raw:
             return None
 
         device_dto = self._map_device_to_dto(raw)
-        
+
         # Cache the result
         if self.cache:
             self.cache.set(cache_key, device_dto, ttl_seconds=self.settings.CACHE_TTL_DEVICE)
             logger.debug("Cached device by ID", device_id=device_id)
-        
+
         return device_dto

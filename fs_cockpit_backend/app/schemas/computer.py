@@ -1,9 +1,11 @@
+from typing import List, Optional
+
 from pydantic import BaseModel
-from typing import Optional, List
 
 
 class ComputerDTO(BaseModel):
     """Data Transfer Object representing a ServiceNow Computer (cmdb_ci_computer)."""
+
     sysId: str
     name: str
     hostName: Optional[str]
@@ -14,5 +16,6 @@ class ComputerDTO(BaseModel):
 
 class ComputerListResponse(BaseModel):
     """Response model for a list of computers."""
+
     computers: List[ComputerDTO]
     count: int

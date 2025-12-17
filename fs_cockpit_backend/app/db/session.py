@@ -1,10 +1,11 @@
 """SQLAlchemy session and engine setup."""
 
 from typing import Generator
+
 import structlog
 from sqlalchemy import create_engine, event, pool, text
-from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.config import db_config
 
@@ -23,24 +24,22 @@ try:
         pool_pre_ping=True,  # Test connections before using
         connect_args={
             "connect_timeout": 10,
-            "options": "-c statement_timeout=30000"  # 30 second statement timeout
-        }
+            "options": "-c statement_timeout=30000",  # 30 second statement timeout
+        },
     )
-    logger.info("Database engine created successfully", 
-                connection_string=db_config.get_connection_string())
+    logger.info(
+        "Database engine created successfully", connection_string=db_config.get_connection_string()
+    )
 except SQLAlchemyError as e:
-    logger.error("Failed to create database engine", 
-                 error=str(e), 
-                 connection_string=db_config.get_connection_string())
+    logger.error(
+        "Failed to create database engine",
+        error=str(e),
+        connection_string=db_config.get_connection_string(),
+    )
     raise
 
 # Session factory
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-    expire_on_commit=False
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 
 # Event listeners for connection pool monitoring

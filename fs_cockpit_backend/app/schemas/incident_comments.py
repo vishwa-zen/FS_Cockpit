@@ -1,10 +1,13 @@
 """Data Transfer Objects (DTOs) for ServiceNow Incident Comments/Activity Logs."""
-from typing import Optional, List
+
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 
 class CommentDTO(BaseModel):
     """Data Transfer Object representing a ServiceNow Incident Comment."""
+
     sys_id: str
     comment_id: Optional[str]  # The actual comment text ID
     text: str  # The comment content
@@ -18,6 +21,7 @@ class CommentDTO(BaseModel):
 
 class ActivityLogEntryDTO(BaseModel):
     """Data Transfer Object representing an Activity Log Entry."""
+
     sys_id: str
     field_name: Optional[str]  # Field that was changed
     old_value: Optional[str]  # Previous value
@@ -30,6 +34,7 @@ class ActivityLogEntryDTO(BaseModel):
 
 class IncidentCommentsAndLogsResponse(BaseModel):
     """Response model containing comments and activity logs for an incident."""
+
     incident_number: str
     incident_sys_id: str
     comments: List[CommentDTO] = []
@@ -41,6 +46,7 @@ class IncidentCommentsAndLogsResponse(BaseModel):
 
 class IncidentCommentThreadResponse(BaseModel):
     """Detailed comment thread response with pagination support."""
+
     incident_number: str
     incident_sys_id: str
     comments: List[CommentDTO] = []

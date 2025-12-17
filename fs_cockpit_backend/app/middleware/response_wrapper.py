@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
 import json
- 
-
-
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from datetime import datetime
 
 import structlog
-from app.middleware.request_id import get_request_id as _get_request_id
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+
 from app.logger.log import get_logger
 
 logger = structlog.get_logger(__name__)
@@ -39,6 +36,7 @@ class ResponseWrapperMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
         from app.logger.log import get_bound_request_id
+
         request_id_state = getattr(request.state, "request_id", None)
         request_header = request.headers.get("X-Request-ID")
         request_id_bound = get_bound_request_id()
@@ -83,7 +81,7 @@ class ResponseWrapperMiddleware(BaseHTTPMiddleware):
                 "message": "Operation completed successfully",
                 "data": payload,
                 "timestamp": _now_iso(),
-                    "request_id": request_id,
+                "request_id": request_id,
             }
         else:
             # For error responses, try to extract message from payload

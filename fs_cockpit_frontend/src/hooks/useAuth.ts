@@ -28,10 +28,6 @@ export const useAuth = () => {
       const accountLocal = msalAccountLocal as any;
       const idTokenClaimsLocal = accountLocal.idTokenClaims || {};
 
-      console.log("[useAuth] Setting user from MSAL account");
-      console.log("[useAuth] Account object:", accountLocal);
-      console.log("[useAuth] ID Token Claims:", idTokenClaimsLocal);
-
       const normalizedUserLocal = {
         ...accountLocal,
         username:
@@ -59,10 +55,6 @@ export const useAuth = () => {
           null,
       } as any;
 
-      console.log("[useAuth] Normalized user:", normalizedUserLocal);
-      console.log("[useAuth] User email:", normalizedUserLocal.email);
-      console.log("[useAuth] User name:", normalizedUserLocal.name);
-
       setIsAuthenticated(true);
       setUser(normalizedUserLocal);
     };
@@ -72,20 +64,8 @@ export const useAuth = () => {
     const msalAccount =
       active || (accounts && accounts.length > 0 ? accounts[0] : null);
 
-    // Log in dev and normalize
+    // Normalize MSAL account
     if (msalAccount) {
-      if (
-        typeof window !== "undefined" &&
-        (import.meta as any).env?.MODE !== "production"
-      ) {
-        // eslint-disable-next-line no-console
-        console.debug("[useAuth] msalAccount:", msalAccount);
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[useAuth] idTokenClaims:",
-          msalAccount.idTokenClaims || {}
-        );
-      }
       setUserFromMsalAccount(msalAccount);
     } else {
       setIsAuthenticated(false);
@@ -145,20 +125,15 @@ export const useAuth = () => {
   }, [accounts, instance]);
 
   const logout = async () => {
-    console.log("[useAuth] Logout initiated");
-
     try {
       const isDemoMode = localStorage.getItem("demo.mode") === "true";
 
       if (isDemoMode) {
-        console.log("[useAuth] Demo mode logout - clearing storage");
         localStorage.clear();
         sessionStorage.clear();
         window.location.href = "/login";
         return;
       }
-
-      console.log("[useAuth] MSAL logout - clearing storage and redirecting");
 
       // Clear all storage first
       localStorage.clear();
@@ -169,7 +144,6 @@ export const useAuth = () => {
       setUser(null);
 
       // Skip MSAL popup logout - just redirect immediately
-      console.log("[useAuth] Redirecting to login...");
       window.location.href = "/login";
     } catch (error) {
       console.error("[useAuth] Logout failed with error:", error);

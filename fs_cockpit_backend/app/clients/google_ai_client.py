@@ -3,9 +3,11 @@ Google Gemini AI Client for generating IT solutions.
 Handles communication with Google's Generative AI API for creating solution recommendations.
 """
 
-import structlog
-from typing import Optional, List
+from typing import List, Optional
+
 import google.generativeai as genai
+import structlog
+
 from app.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -17,27 +19,29 @@ class GoogleAIClient:
     def __init__(self):
         """Initialize the Google AI Client with API configuration."""
         self.settings = get_settings()
-        
+
         if not self.settings.GOOGLE_AI_ENABLED or not self.settings.GOOGLE_AI_API_KEY:
             logger.warning("Google AI is disabled or API key not configured")
             logger.warning(
                 "Google AI Configuration",
                 enabled=self.settings.GOOGLE_AI_ENABLED,
                 api_key_present=bool(self.settings.GOOGLE_AI_API_KEY),
-                api_key_length=len(self.settings.GOOGLE_AI_API_KEY) if self.settings.GOOGLE_AI_API_KEY else 0,
+                api_key_length=(
+                    len(self.settings.GOOGLE_AI_API_KEY) if self.settings.GOOGLE_AI_API_KEY else 0
+                ),
             )
             self.model = None
             return
-        
+
         try:
             # Configure the Gemini API
             genai.configure(api_key=self.settings.GOOGLE_AI_API_KEY)
-            
+
             # Construct the full model name with "models/" prefix for the SDK
             model_name_str = str(self.settings.GOOGLE_AI_MODEL_NAME)
             if not model_name_str.startswith("models/"):
                 model_name_str = f"models/{model_name_str}"
-            
+
             # Initialize the model
             self.model = genai.GenerativeModel(
                 model_name=model_name_str,
@@ -49,7 +53,11 @@ class GoogleAIClient:
             logger.info(
                 "Google AI Client initialized successfully",
                 model=self.settings.GOOGLE_AI_MODEL_NAME,
-                api_key_preview=self.settings.GOOGLE_AI_API_KEY[:10] + "..." if self.settings.GOOGLE_AI_API_KEY else "NONE",
+                api_key_preview=(
+                    self.settings.GOOGLE_AI_API_KEY[:10] + "..."
+                    if self.settings.GOOGLE_AI_API_KEY
+                    else "NONE"
+                ),
             )
         except Exception as e:  # noqa: BLE001
             logger.error(
@@ -85,18 +93,26 @@ class GoogleAIClient:
             Exception: If API call fails
         """
         if not self.model:
+            logger.error("[GOOGLE_AI] CRITICAL: Model is None - Google AI not configured or enabled")
             raise ValueError("Google AI is not configured or enabled")
 
         try:
+            logger.info(
+                "[GOOGLE_AI] Starting solution generation",
+                model=self.settings.GOOGLE_AI_MODEL_NAME,
+                has_incident_description=bool(incident_description),
+                incident_description_length=len(incident_description) if incident_description else 0,
+            )
+
             # Build context information with device details priority
             context_parts = []
-            
+
             # Add device details first if available (most specific)
             if device_details:
                 context_parts.append(f"Device Specs: {device_details}")
             elif device_name:
                 context_parts.append(f"Device: {device_name}")
-            
+
             if category:
                 context_parts.append(f"Category: {category}")
             if error_message:
@@ -104,87 +120,118 @@ class GoogleAIClient:
 
             context_str = " | ".join(context_parts) if context_parts else ""
 
-            # Build the prompt for Gemini
-            prompt = self._build_solution_prompt(
-                incident_description, context_str
+            logger.info(
+                "[GOOGLE_AI] Context prepared",
+                context_length=len(context_str),
+                device_details_provided=bool(device_details),
+                category=category,
+                context_preview=context_str[:150] if context_str else "empty",
             )
 
-            logger.debug(
-                "Calling Gemini AI for solution generation",
-                incident_description=incident_description[:100],
-                category=category,
-            )
-            
-            # Log the prompt being sent
-            logger.debug(
-                "Gemini prompt",
+            # Build the prompt for Gemini
+            prompt = self._build_solution_prompt(incident_description, context_str)
+
+            logger.info(
+                "[GOOGLE_AI] Prompt built, about to call Gemini API",
                 prompt_length=len(prompt),
-                prompt_preview=prompt[:200],
+                prompt_preview=prompt[:200] if prompt else "empty",
             )
 
             # Call Gemini API
+            logger.info("[GOOGLE_AI] Making API call to generate_content()")
             response = self.model.generate_content(prompt)
+            logger.info("[GOOGLE_AI] API call completed, processing response")
 
             # Parse and validate response
             solution_text = None
             if response.candidates and len(response.candidates) > 0:
                 candidate = response.candidates[0]
                 # Log the finish reason to understand why response might be empty
-                finish_reason = getattr(candidate, 'finish_reason', None)
-                has_parts = candidate.content and len(candidate.content.parts) > 0 if candidate.content else False
-                
-                logger.debug(
-                    "Gemini response received",
-                    finish_reason=finish_reason,
-                    finish_reason_type=type(finish_reason).__name__,
+                finish_reason = getattr(candidate, "finish_reason", None)
+                has_parts = (
+                    candidate.content and len(candidate.content.parts) > 0
+                    if candidate.content
+                    else False
+                )
+
+                logger.info(
+                    "[GOOGLE_AI] Response processing",
+                    candidates_count=len(response.candidates),
+                    finish_reason=str(finish_reason),
                     has_content=bool(candidate.content),
                     has_parts=has_parts,
                     content_parts_count=len(candidate.content.parts) if candidate.content else 0,
                 )
-                
+
                 # Only try to get response.text if we have actual parts
                 if has_parts:
                     try:
                         solution_text = response.text
-                        logger.debug("Successfully extracted response.text", text_length=len(solution_text))
+                        logger.info(
+                            "[GOOGLE_AI] Successfully extracted response.text",
+                            text_length=len(solution_text),
+                            text_preview=solution_text[:200] if solution_text else "empty",
+                        )
                     except Exception as e:
-                        logger.warning("Could not extract response.text", error=str(e), error_type=type(e).__name__)
+                        logger.warning(
+                            "[GOOGLE_AI] Could not extract response.text",
+                            error=str(e),
+                            error_type=type(e).__name__,
+                        )
                         solution_text = None
-                
+
                 # If no parts, the response was cut off (MAX_TOKENS) - treat as failure
                 if not solution_text:
-                    raise ValueError(f"No valid response parts from Gemini (finish_reason={finish_reason})")
-                    
+                    logger.error(
+                        "[GOOGLE_AI] No valid response parts from Gemini",
+                        finish_reason=str(finish_reason),
+                        candidates_count=len(response.candidates),
+                    )
+                    raise ValueError(
+                        f"No valid response parts from Gemini (finish_reason={finish_reason})"
+                    )
+
+                logger.info("[GOOGLE_AI] Parsing solution response")
                 solution_points = self._parse_solution_response(solution_text)
+                logger.info(
+                    "[GOOGLE_AI] Solution points parsed",
+                    points_count=len(solution_points) if solution_points else 0,
+                    solution_points_preview=solution_points[:2] if solution_points else [],
+                )
+
                 if solution_points:  # Only return if we got actual points
                     logger.info(
-                        "Successfully generated solution points",
+                        "[GOOGLE_AI] SUCCESS - Successfully generated solution points",
                         count=len(solution_points),
                         category=category,
                     )
                     return solution_points
                 else:
+                    logger.error("[GOOGLE_AI] No solution points could be parsed from response")
                     raise ValueError("No solution points could be parsed from response")
-            
+
             # If we reach here, response was empty or invalid
+            logger.error(
+                "[GOOGLE_AI] No response candidates returned from Gemini API",
+                response_candidates=response.candidates if response else "no response object",
+            )
             raise ValueError("No response candidates returned from Gemini API")
 
         except ValueError as e:
-            logger.error("Validation error in solution generation", error=str(e))
+            logger.error("[GOOGLE_AI] Validation error in solution generation", error=str(e))
             raise
         except Exception as e:
             logger.error(
-                "Error calling Google AI API",
+                "[GOOGLE_AI] Error calling Google AI API",
                 error=str(e),
                 error_type=type(e).__name__,
-                incident_description=incident_description[:100],
+                incident_description_preview=incident_description[:100] if incident_description else "empty",
                 device_details_length=len(device_details) if device_details else 0,
+                model_info=str(self.model) if self.model else "Model is None",
             )
             raise
 
-    def _build_solution_prompt(
-        self, incident_description: str, context: str
-    ) -> str:
+    def _build_solution_prompt(self, incident_description: str, context: str) -> str:
         """
         Build a structured prompt for Gemini to generate solutions.
 
@@ -196,7 +243,7 @@ class GoogleAIClient:
             Formatted prompt string
         """
         context_line = f"\nDevice/Category: {context}" if context else ""
-        
+
         base_prompt = f"""You are an IT support technician. Provide exactly 6-8 numbered troubleshooting steps.
 
 ISSUE: {incident_description}{context_line}
@@ -224,47 +271,50 @@ Steps:"""
             List of solution points as strings
         """
         import re
-        
+
         # Split by newlines
         lines = [line.strip() for line in response_text.split("\n") if line.strip()]
 
         solution_points = []
         for line in lines:
             # Skip header lines like "Here are X troubleshooting steps" or "Here are the steps"
-            if any(header in line.lower() for header in [
-                "here are",
-                "here's",
-                "below are",
-                "following are",
-                "troubleshooting steps",
-                "solution steps",
-                "your vpn",
-                "your device",
-                "your issue",
-            ]):
+            if any(
+                header in line.lower()
+                for header in [
+                    "here are",
+                    "here's",
+                    "below are",
+                    "following are",
+                    "troubleshooting steps",
+                    "solution steps",
+                    "your vpn",
+                    "your device",
+                    "your issue",
+                ]
+            ):
                 continue
-            
+
             # Remove leading numbering patterns (1., 1), -, *, etc.)
             # Handle formats like "1. ", "1) ", "- ", "* ", "** ", etc.
-            cleaned = re.sub(r'^[\d]+[\.\)]\s*', '', line)  # Remove "1. " or "1) "
-            cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks/bold markers
-            
+            cleaned = re.sub(r"^[\d]+[\.\)]\s*", "", line)  # Remove "1. " or "1) "
+            cleaned = re.sub(r"^\*+\s*", "", cleaned)  # Remove leading asterisks/bold markers
+
             # Remove markdown bold/italic markers (* and **)
-            cleaned = cleaned.replace('**', '')
-            cleaned = cleaned.replace('*', '')
-            
+            cleaned = cleaned.replace("**", "")
+            cleaned = cleaned.replace("*", "")
+
             # Remove leading dashes/bullets
-            cleaned = re.sub(r'^[-•]\s*', '', cleaned)
-            
+            cleaned = re.sub(r"^[-•]\s*", "", cleaned)
+
             cleaned = cleaned.strip()
-            
+
             # Remove conversational phrases and possessive language
             conversational_phrases = [
                 r"^your\s+",  # Remove "your " at start
                 r"^your\s+",
             ]
             for phrase in conversational_phrases:
-                cleaned = re.sub(phrase, '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(phrase, "", cleaned, flags=re.IGNORECASE)
 
             # Only include non-empty lines with meaningful content (at least 10 chars)
             if cleaned and len(cleaned) >= 10:

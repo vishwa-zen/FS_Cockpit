@@ -1,4 +1,5 @@
 """Middleware to add common security headers to each response."""
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 

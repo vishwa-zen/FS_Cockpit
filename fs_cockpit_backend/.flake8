@@ -1,0 +1,39 @@
+[flake8]
+# Configure flake8 to match Black formatter (100 char line length)
+max-line-length = 100
+
+# Ignore these error codes
+# E203: whitespace before ':' (Black compatibility)
+# W503: line break before binary operator (Black compatibility)
+extend-ignore = E203, W503
+
+# Exclude directories
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    .pytest_cache,
+    .mypy_cache,
+    build,
+    dist,
+    .eggs
+
+# Per-file ignores
+per-file-ignores =
+    __init__.py:F401,
+    tests/*:F401,F841,
+    app/services/servicenow_service.py:E501,
+    app/clients/servicenow_client.py:E501,
+    app/clients/intune_client.py:E501,
+    app/clients/nextthink_client.py:E501,
+    app/clients/google_ai_client.py:E501,
+    app/utils/incident_utils.py:E501,
+    app/api/routes/nextthink.py:E501,
+    app/config/settings.py:E501,
+    app/middleware/auth.py:E501,
+    app/middleware/request_id.py:E501,
+    app/schemas/diagnostics.py:E501,
+    app/services/nextthink_service.py:E501,
+    app/db/session.py:F401,
+    app/db/connection.py:F821

@@ -6,24 +6,24 @@ creation and wiring (middleware, routers, startup events) are easier to test
 and extend. The module still exposes a top-level `app` variable for
 `uvicorn main:app` / `gunicorn main:app` compatibility.
 """
+
 from typing import Optional
-from fastapi import FastAPI
-from fastapi import Request
+
+import structlog
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-import structlog
 
-from app.api.routes import intune, servicenow, nextthink
-from app.api.routes import health_metrics
 from app.api.routes import cache as cache_routes
-from app.middleware.security import SecurityHeadersMiddleware
-from app.middleware.request_id import RequestIDMiddleware, get_request_id
-from app.middleware.error_handler import GlobalErrorHandlerMiddleware
-from app.middleware.response_wrapper import ResponseWrapperMiddleware
-from app.middleware.auth import AzureADAuthMiddleware
-from app.config.settings import get_settings, Settings
+from app.api.routes import health_metrics, intune, nextthink, servicenow
+from app.config.settings import Settings, get_settings
+from app.db.connection import close_db, init_db
 from app.logger.log import configure_logging
-from app.db.connection import init_db, close_db
+from app.middleware.auth import AzureADAuthMiddleware
+from app.middleware.error_handler import GlobalErrorHandlerMiddleware
+from app.middleware.request_id import RequestIDMiddleware, get_request_id
+from app.middleware.response_wrapper import ResponseWrapperMiddleware
+from app.middleware.security import SecurityHeadersMiddleware
 
 # Try to configure logging at module import time using settings if available.
 # This is best-effort: don't raise if settings are incomplete during import.
@@ -38,6 +38,7 @@ try:
 except Exception:
     # Fall back to a plain structlog logger; configuration may be handled later.
     logger = structlog.get_logger()
+
 
 class FSCockpitApplication:
     """Encapsulates FastAPI app creation and configuration.
@@ -85,11 +86,11 @@ class FSCockpitApplication:
         # request-id middleware last.
         self._app.add_middleware(GlobalErrorHandlerMiddleware)
         self._app.add_middleware(ResponseWrapperMiddleware)
-        
+
         # Add Azure AD authentication middleware (before request-id so it can access request_id)
         # This middleware is only active when AZURE_AD_ENABLED=True
         self._app.add_middleware(AzureADAuthMiddleware)
-        
+
         # Request-id middleware should run early so other middleware/handlers
         # can access `request.state.request_id`.
         self._app.add_middleware(RequestIDMiddleware)
@@ -147,25 +148,28 @@ class FSCockpitApplication:
                 # logging should never prevent the endpoint from replying
                 pass
             return {"status": "ok"}
-    
+
     def _register_shutdown(self) -> None:
         """Register shutdown event to cleanup connection pools and cache."""
         assert self._app is not None
-        
+
         @self._app.on_event("startup")
         async def startup_event():
             """Initialize database and background tasks on startup."""
             import asyncio
+
             from app.cache.memory_cache import get_cache
-            
+
             # Initialize database and verify connection
             self.logger.info("Starting database initialization")
             db_initialized = await init_db()
             if db_initialized:
                 self.logger.info("Database initialized successfully")
             else:
-                self.logger.error("Database initialization failed - application may have limited functionality")
-            
+                self.logger.error(
+                    "Database initialization failed - application may have limited functionality"
+                )
+
             async def cleanup_cache_periodically():
                 """Background task to cleanup expired cache entries."""
                 while True:
@@ -178,30 +182,36 @@ class FSCockpitApplication:
                                 self.logger.info("Automatic cache cleanup", removed_entries=removed)
                     except Exception as e:
                         self.logger.error("Cache cleanup error", error=str(e))
-            
+
             # Start background cleanup task
             if self.settings.CACHE_ENABLED:
                 asyncio.create_task(cleanup_cache_periodically())
-                self.logger.info("Cache cleanup task started", interval_seconds=self.settings.CACHE_CLEANUP_INTERVAL)
-        
+                self.logger.info(
+                    "Cache cleanup task started",
+                    interval_seconds=self.settings.CACHE_CLEANUP_INTERVAL,
+                )
+
         @self._app.on_event("shutdown")
         async def shutdown_event():
             """Cleanup resources on application shutdown."""
             try:
                 self.logger.info("Starting application shutdown")
-                
+
                 # Close database connections
                 await close_db()
                 self.logger.info("Database connections closed")
-                
+
                 # Close HTTP client connections
                 from app.clients.base_cleint import BaseClient
+
                 await BaseClient.close_shared_client()
                 self.logger.info("HTTP client connections closed")
-                
+
                 self.logger.info("Application shutdown complete")
             except Exception as e:
-                self.logger.error("Error during shutdown", error=str(e), error_type=type(e).__name__)
+                self.logger.error(
+                    "Error during shutdown", error=str(e), error_type=type(e).__name__
+                )
 
     @property
     def app(self) -> FastAPI:

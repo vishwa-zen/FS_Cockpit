@@ -2,15 +2,15 @@ import { useMsal } from "@azure/msal-react";
 import { ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { popupLoginRequest } from "../../../../config/msalConfig";
-import { Alert, AlertDescription } from "../../../../components/ui/alert";
-import { Button } from "../../../../components/ui/button";
-import { Card, CardContent } from "../../../../components/ui/card";
+import { popupLoginRequest } from "../config/msalConfig";
+import { Alert, AlertDescription } from "../components/ui/alert";
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
 import {
   IntelligentDiagnosticsIcon,
   RealTimeIcon,
   UnifiedITIcon,
-} from "../../../../components/icons";
+} from "../components/icons";
 
 const features = [
   {
@@ -27,7 +27,7 @@ const features = [
   },
 ];
 
-export const SignInSection = (): JSX.Element => {
+export const LoginPage = (): JSX.Element => {
   const navigate = useNavigate();
   const location = useLocation();
   const { instance, accounts } = useMsal();
@@ -47,137 +47,95 @@ export const SignInSection = (): JSX.Element => {
     const hasToken = localStorage.getItem("msal.token");
     const hasAccount = localStorage.getItem("msal.account");
 
-    console.log("[SignIn] Auth check:", {
-      msalAccounts: accounts.length,
-      hasToken: !!hasToken,
-      hasAccount: !!hasAccount,
-      isRedirecting,
-      isLoading,
-      intendedDestination: from,
-    });
-
     if (accounts.length > 0 || (hasToken && hasAccount)) {
-      console.log("[SignIn] User already authenticated, redirecting to:", from);
       setIsRedirecting(true);
       navigate(from, { replace: true });
     }
   }, [accounts, navigate, isRedirecting, isLoading, from]);
-  const handleSignIn = async () => {
+  const handleSignIn = () => {
+    // DO NOT use async here - it breaks popup flow
     setIsLoading(true);
     setError(null);
 
-    try {
-      console.log("[SignIn] Initiating login popup...");
-      console.log("[SignIn] Login request:", popupLoginRequest);
-      console.log("[SignIn] Current URL:", window.location.href);
+    // CRITICAL: Call loginPopup synchronously from user click event
+    // Any async/await here will cause popup blocker to trigger
+    instance
+      .loginPopup(popupLoginRequest)
+      .then((response) => {
+        // Store both tokens - backend might need ID token instead of access token
+        if (response.accessToken) {
+          // Store access token as main token for API requests
+          localStorage.setItem("msal.token", response.accessToken);
+          localStorage.setItem("msal.accessToken", response.accessToken);
+        }
+        if (response.idToken) {
+          localStorage.setItem("msal.idToken", response.idToken);
+          localStorage.setItem("msal.token", response.idToken);
+        }
 
-      // CRITICAL: Force popup mode - do not allow redirect fallback
-      const response = await instance
-        .loginPopup({
-          ...popupLoginRequest,
-        })
-        .catch((error) => {
-          console.error("[SignIn] Popup error:", error);
-          // Check if popup was blocked
-          if (
-            error.errorCode === "popup_window_error" ||
-            error.errorCode === "empty_window_error" ||
-            error.errorCode === "monitor_window_timeout" ||
-            error.errorMessage?.includes("popup")
-          ) {
-            throw new Error(
-              "Popup blocked! Please allow popups for this site in your browser settings and try again."
-            );
-          }
-          throw error;
+        if (response.account) {
+          // Store the full account data including idTokenClaims
+          const accountWithClaims = {
+            ...response.account,
+            idTokenClaims: response.idTokenClaims,
+          };
+
+          localStorage.setItem(
+            "msal.account",
+            JSON.stringify(accountWithClaims)
+          );
+          instance.setActiveAccount(response.account);
+
+          // Store login timestamp to help detect immediate 401s after login
+          sessionStorage.setItem("last_login_time", Date.now().toString());
+        }
+
+        // Small delay to ensure localStorage is written
+        setTimeout(() => {
+          // Dispatch custom event to notify app that login completed
+          window.dispatchEvent(
+            new CustomEvent("loginComplete", {
+              detail: { timestamp: Date.now() },
+            })
+          );
+
+          // Set redirecting flag and navigate to intended destination
+          setIsRedirecting(true);
+          navigate(from, { replace: true });
+          setIsLoading(false);
+        }, 100);
+      })
+      .catch((err: any) => {
+        console.error("Login popup failed:", err);
+        console.error("Error details:", {
+          errorCode: err?.errorCode,
+          errorMessage: err?.errorMessage,
+          message: err?.message,
         });
 
-      console.log("Login successful:", response);
-      console.log("Login response - full response:", {
-        account: response.account,
-        idToken: response.idToken
-          ? "present (length: " + response.idToken.length + ")"
-          : "missing",
-        accessToken: response.accessToken
-          ? "present (length: " + response.accessToken.length + ")"
-          : "missing",
-        idTokenClaims: response.idTokenClaims,
+        // Check if popup was blocked
+        if (
+          err?.errorCode === "popup_window_error" ||
+          err?.errorCode === "empty_window_error" ||
+          err?.errorCode === "monitor_window_timeout" ||
+          err?.errorMessage?.includes("popup") ||
+          err?.errorMessage?.includes("window")
+        ) {
+          setError(
+            "Popup blocked! Please allow popups for this site in your browser settings and try again."
+          );
+        }
+        // Check if user cancelled
+        else if (
+          err?.errorCode === "user_cancelled" ||
+          err?.message?.includes("user_cancelled")
+        ) {
+          setError("Login cancelled. Please try again.");
+        } else {
+          setError(`Login failed: ${err?.message || "Unknown error"}`);
+        }
+        setIsLoading(false);
       });
-
-      // Store both tokens - backend might need ID token instead of access token
-      if (response.accessToken) {
-        // Store access token as main token for API requests
-        localStorage.setItem("msal.token", response.accessToken);
-        localStorage.setItem("msal.accessToken", response.accessToken);
-        console.log(
-          "[SignIn] ✅ Access Token stored as main token, length:",
-          response.accessToken.length
-        );
-      }
-      if (response.idToken) {
-        localStorage.setItem("msal.idToken", response.idToken);
-        localStorage.setItem("msal.token", response.idToken);
-        console.log(
-          "[SignIn] ✅ ID Token stored as msal.token, length:",
-          response.idToken.length
-        );
-      }
-
-      if (response.account) {
-        console.log("[SignIn] Account object:", response.account);
-        console.log("[SignIn] ID Token Claims:", response.idTokenClaims);
-
-        // Store the full account data including idTokenClaims
-        const accountWithClaims = {
-          ...response.account,
-          idTokenClaims: response.idTokenClaims,
-        };
-
-        localStorage.setItem("msal.account", JSON.stringify(accountWithClaims));
-        instance.setActiveAccount(response.account);
-
-        console.log("[SignIn] Stored account data:", accountWithClaims);
-        console.log("[SignIn] Authentication complete, navigating to home");
-
-        // Store login timestamp to help detect immediate 401s after login
-        sessionStorage.setItem("last_login_time", Date.now().toString());
-      }
-
-      // Small delay to ensure localStorage is written
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Dispatch custom event to notify app that login completed
-      window.dispatchEvent(
-        new CustomEvent("loginComplete", {
-          detail: { timestamp: Date.now() },
-        })
-      );
-      console.log("[SignIn] 🔔 Dispatched loginComplete event");
-
-      // Set redirecting flag and navigate to intended destination
-      console.log("[SignIn] Navigating to:", from);
-      setIsRedirecting(true);
-      navigate(from, { replace: true });
-    } catch (err: any) {
-      console.error("Login popup failed:", err);
-      console.error("Error details:", {
-        errorCode: err?.errorCode,
-        errorMessage: err?.errorMessage,
-        message: err?.message,
-      });
-
-      // Check if user cancelled
-      if (
-        err?.errorCode === "user_cancelled" ||
-        err?.message?.includes("user_cancelled")
-      ) {
-        setError("Login cancelled. Please try again.");
-      } else {
-        setError(`Login failed: ${err?.message || "Unknown error"}`);
-      }
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (

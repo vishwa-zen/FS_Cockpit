@@ -2,17 +2,18 @@
 
 from datetime import datetime
 from typing import Optional
+
 import structlog
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError, OperationalError
 
 from app.db.models import (
-    Incident,
-    Device,
-    KnowledgeArticle,
-    SyncHistory,
-    RemoteAction,
     AuditLog,
+    Device,
+    Incident,
+    KnowledgeArticle,
+    RemoteAction,
+    SyncHistory,
 )
 
 logger = structlog.get_logger(__name__)
@@ -20,7 +21,7 @@ logger = structlog.get_logger(__name__)
 
 class IncidentWriter:
     """Write incident data to database."""
-    
+
     @staticmethod
     def push_incident(
         db: Session,
@@ -54,7 +55,7 @@ class IncidentWriter:
             logger.warning(
                 "Incident already exists or constraint violation",
                 incident_number=incident_number,
-                error_detail=str(e.orig) if hasattr(e, 'orig') else str(e),
+                error_detail=str(e.orig) if hasattr(e, "orig") else str(e),
             )
             return False
         except OperationalError as e:
@@ -83,7 +84,7 @@ class IncidentWriter:
                 error_detail=str(e),
             )
             return False
-    
+
     @staticmethod
     def update_incident_solution(
         db: Session,
@@ -136,7 +137,7 @@ class IncidentWriter:
 
 class DeviceWriter:
     """Write device data to database."""
-    
+
     @staticmethod
     def push_device(
         db: Session,
@@ -170,7 +171,7 @@ class DeviceWriter:
             logger.warning(
                 "Device already exists or constraint violation",
                 device_name=device_name,
-                error_detail=str(e.orig) if hasattr(e, 'orig') else str(e),
+                error_detail=str(e.orig) if hasattr(e, "orig") else str(e),
             )
             return False
         except OperationalError as e:
@@ -199,7 +200,7 @@ class DeviceWriter:
                 error_detail=str(e),
             )
             return False
-    
+
     @staticmethod
     def update_device_health(
         db: Session,
@@ -248,7 +249,7 @@ class DeviceWriter:
 
 class KnowledgeArticleWriter:
     """Write knowledge articles to database."""
-    
+
     @staticmethod
     def push_article(
         db: Session,
@@ -283,7 +284,7 @@ class KnowledgeArticleWriter:
             db.rollback()
             logger.error("Error pushing article", article_number=article_number, error=str(e))
             return False
-    
+
     @staticmethod
     def update_article_embedding(
         db: Session,
@@ -304,13 +305,15 @@ class KnowledgeArticleWriter:
                 return False
         except Exception as e:
             db.rollback()
-            logger.error("Error updating article embedding", article_number=article_number, error=str(e))
+            logger.error(
+                "Error updating article embedding", article_number=article_number, error=str(e)
+            )
             return False
 
 
 class SyncHistoryWriter:
     """Write sync history to database."""
-    
+
     @staticmethod
     def push_sync_record(
         db: Session,
@@ -329,7 +332,9 @@ class SyncHistoryWriter:
             )
             db.add(sync_record)
             db.commit()
-            logger.info("Sync record pushed to DB", source=source, status=sync_status, count=record_count)
+            logger.info(
+                "Sync record pushed to DB", source=source, status=sync_status, count=record_count
+            )
             return True
         except Exception as e:
             db.rollback()
@@ -339,7 +344,7 @@ class SyncHistoryWriter:
 
 class RemoteActionWriter:
     """Write remote action data to database."""
-    
+
     @staticmethod
     def push_action(
         db: Session,
@@ -374,7 +379,7 @@ class RemoteActionWriter:
             db.rollback()
             logger.error("Error pushing action", action_id=action_id, error=str(e))
             return False
-    
+
     @staticmethod
     def update_action_status(
         db: Session,
@@ -406,7 +411,7 @@ class RemoteActionWriter:
 
 class AuditLogWriter:
     """Write audit logs to database with comprehensive error handling."""
-    
+
     @staticmethod
     def log_action(
         db: Session,
@@ -442,7 +447,7 @@ class AuditLogWriter:
                 "Audit log constraint violation",
                 technician=technician_username,
                 action=action,
-                error_detail=str(e.orig) if hasattr(e, 'orig') else str(e),
+                error_detail=str(e.orig) if hasattr(e, "orig") else str(e),
             )
             return False
         except OperationalError as e:

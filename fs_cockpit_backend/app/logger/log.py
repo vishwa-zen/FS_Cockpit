@@ -17,9 +17,9 @@ from typing import Optional
 
 import structlog
 
-
 try:
     from structlog import contextvars as _structlog_contextvars  # type: ignore
+
     _HAS_CONTEXTVARS = True
 except ImportError:
     _structlog_contextvars = None
@@ -37,7 +37,11 @@ def configure_logging(env: str = "development", *, enable_file: Optional[bool] =
     """
 
     if enable_file is None:
-        enable_file = os.getenv("SURVEY_ENABLE_FILE_LOGGING", "false").lower() in ("1", "true", "yes")
+        enable_file = os.getenv("SURVEY_ENABLE_FILE_LOGGING", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
     console_level = logging.DEBUG if env != "production" else logging.INFO
 
@@ -59,9 +63,15 @@ def configure_logging(env: str = "development", *, enable_file: Optional[bool] =
         max_bytes = int(os.getenv("FC_COCKPIT_LOG_MAX_BYTES", str(50 * 1024 * 1024)))
         backup_count = int(os.getenv("FC_COCKPIT_LOG_BACKUP_COUNT", "2"))
         try:
-            fh = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
+            fh = RotatingFileHandler(
+                log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+            )
             fh.setLevel(logging.INFO if env == "production" else logging.DEBUG)
-            fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S%z"))
+            fh.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s %(levelname)s %(name)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S%z"
+                )
+            )
             root_logger.addHandler(fh)
         except OSError as exc:  # pragma: no cover - best-effort
             print(f"[logger] failed to set up file handler: {exc}", file=sys.stderr)

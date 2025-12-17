@@ -218,10 +218,21 @@ export interface ApiResponse<T> {
 }
 
 /**
+ * Pagination metadata for API responses
+ */
+export interface PaginationInfo {
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+/**
  * Collection wrapper for incidents
  */
 export interface IncidentsData {
   incidents: Incident[];
+  pagination?: PaginationInfo;
 }
 
 // Helper function to map numeric priority to text labels
@@ -308,7 +319,7 @@ export const ticketsAPI = {
             status: incident.status,
             statusColor: getStatusColor(incident.status),
             title: incident.shortDescription,
-            device: incident.deviceName || "N/A",
+            device: incident.deviceName || "Not Available",
             priority: mapPriorityToText(incident.priority),
             priorityColor: getPriorityColor(incident.priority),
             time: getTimeAgo(incident.openedAt),
@@ -356,7 +367,7 @@ export const ticketsAPI = {
             status: incident.status,
             statusColor: getStatusColor(incident.status),
             title: incident.shortDescription,
-            device: incident.deviceName || "N/A",
+            device: incident.deviceName || "Not Available",
             priority: mapPriorityToText(incident.priority),
             priorityColor: getPriorityColor(incident.priority),
             time: getTimeAgo(incident.openedAt),
@@ -388,22 +399,33 @@ export const ticketsAPI = {
       };
     }
   },
-  getMyTickets: async () => {
+  getMyTickets: async (limit: number = 25, offset: number = 0) => {
     try {
       const response = await apiClient.get<ApiResponse<IncidentsData>>(
-        "/servicenow/technician/FS_Cockpit_Integration/incidents"
+        `/servicenow/technician/FS_Cockpit_Integration/incidents?limit=${limit}&offset=${offset}`
       );
 
       if (response.data.success) {
         // Transform the data to match our UI format
-        const transformedData = response.data.data.incidents.map(
-          (incident) => ({
+        const transformedData = response.data.data.incidents.map((incident) => {
+          // Log incidents with missing device names
+          if (!incident.deviceName) {
+            logger.warn(
+              `[ServiceNow] Incident ${incident.incidentNumber} has no deviceName`,
+              {
+                incidentNumber: incident.incidentNumber,
+                callerId: incident.callerId,
+                deviceName: incident.deviceName,
+              }
+            );
+          }
+          return {
             id: incident.incidentNumber,
             sysId: incident.sysId,
             status: incident.status,
             statusColor: getStatusColor(incident.status),
             title: incident.shortDescription,
-            device: incident.deviceName || "N/A",
+            device: incident.deviceName || "Not Available",
             priority: mapPriorityToText(incident.priority),
             priorityColor: getPriorityColor(incident.priority),
             time: getTimeAgo(incident.openedAt),
@@ -415,11 +437,12 @@ export const ticketsAPI = {
             lastUpdatedAt: incident.lastUpdatedAt,
             impact: incident.impact,
             active: incident.active,
-          })
-        );
+          };
+        });
 
         return {
           data: transformedData,
+          pagination: response.data.data.pagination,
           success: true,
           message: response.data.message,
         };
@@ -461,7 +484,7 @@ export const ticketsAPI = {
           status: incident.status,
           statusColor: getStatusColor(incident.status),
           title: incident.shortDescription,
-          device: incident.deviceName || "N/A",
+          device: incident.deviceName || "Not Available",
           priority: mapPriorityToText(incident.priority),
           priorityColor: getPriorityColor(incident.priority),
           time: getTimeAgo(incident.openedAt),
@@ -502,13 +525,19 @@ export const ticketsAPI = {
       if (response.data.success) {
         // Transform single incident to UI format with full details
         const incident = response.data.data;
+
+        // Log device name from details API
+        logger.info(
+          `[ServiceNow Details API] Incident ${incident.incidentNumber} deviceName: "${incident.deviceName}"`
+        );
+
         const transformedData = {
           id: incident.incidentNumber,
           sysId: incident.sysId,
           status: incident.status,
           statusColor: getStatusColor(incident.status),
           title: incident.shortDescription,
-          device: incident.deviceName || "N/A",
+          device: incident.deviceName || "Not Available",
           priority: mapPriorityToText(incident.priority),
           priorityColor: getPriorityColor(incident.priority),
           time: getTimeAgo(incident.openedAt),
@@ -726,6 +755,123 @@ export const knowledgeAPI = {
 };
 
 export const diagnosticsAPI = {
+  getDeviceDiagnostics: async (
+    deviceName: string,
+    mode: "full" | "quick" = "full",
+    includeDetails: boolean = true
+  ) => {
+    try {
+      logger.debug("Fetching device diagnostics", {
+        deviceName,
+        mode,
+        includeDetails,
+      });
+      const response = await apiClient.post<
+        ApiResponse<{
+          device_name: string;
+          device_id: string | null;
+          timestamp: string;
+          hardware: {
+            cpu: {
+              cpu_usage_percent: number;
+              cpu_usage_24h_avg: number;
+              cpu_model: string | null;
+              cpu_speed_ghz: number | null;
+              cpu_cores: number | null;
+              boot_metrics: {
+                full_boots_7d: number;
+                hard_resets_7d: number;
+                suspends_7d: number;
+                system_crashes_7d: number;
+                average_boot_duration_7d_minutes: number;
+                average_time_until_desktop_ready_7d_seconds: number;
+              };
+            };
+            gpu: any | null;
+            memory: {
+              memory_usage_percent: number;
+              memory_total_gb: number | null;
+              memory_available_gb: number | null;
+            };
+            disk: {
+              disk_total_gb: number;
+              disk_type: string;
+            };
+            network_metrics: {
+              wifi_signal_strength_24h_percent: number | null;
+            };
+          };
+          os_health: {
+            build_info: {
+              os_name: string;
+              os_platform: string;
+              architecture: string;
+              days_since_last_update: number;
+            };
+            uptime_info: {
+              uptime_days: number;
+              last_full_boot_duration_minutes: number;
+              days_since_last_seen: number;
+            };
+          };
+          device_scores: {
+            overall_dex_score: number;
+            endpoint_score: number;
+            boot_speed_score: number;
+            logon_speed_score: number;
+            applications_score: number;
+            collaboration_score: number | null;
+            os_activation_score: number;
+            network_quality_score: number | null;
+            device_performance_score: number;
+            device_reliability_score: number;
+          };
+          application_health: {
+            crash_count_24h: number;
+            time_period: string;
+          };
+          alert_summary: {
+            alert_count: number;
+          };
+          diagnostics_mode: string;
+          categories_available: string[];
+          categories_requested: string[];
+          data_completeness_percent: number;
+          notes: string | null;
+        }>
+      >("/nextthink/diagnostics", {
+        device_name: deviceName,
+        mode,
+        include_details: includeDetails,
+      });
+
+      if (response.data.success && response.data.data) {
+        logger.info("Device diagnostics retrieved successfully", {
+          device: deviceName,
+        });
+        return {
+          data: response.data.data,
+          success: true,
+          message: response.data.message,
+        };
+      }
+
+      throw new Error(
+        response.data.message || "Failed to retrieve device diagnostics"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch device diagnostics", error);
+      return {
+        data: null,
+        success: false,
+        message:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Device diagnostics unavailable",
+      };
+    }
+  },
+
   getRootCauses: async (ticketId: string) => {
     try {
       return await apiClient.get(`/diagnostics/${ticketId}/root-causes`);
@@ -981,6 +1127,10 @@ export interface IntuneDevice {
   userDisplayName: string;
   totalStorageSpaceInBytes?: number;
   freeStorageSpaceInBytes?: number;
+  ipAddress?: string;
+  macAddress?: string;
+  connectionType?: string;
+  vpnStatus?: string;
 }
 
 export interface IntuneDevicesData {
@@ -1033,7 +1183,7 @@ export const remoteActionsAPI = {
       };
 
       // Add optional fields if provided
-      if (deviceName && deviceName !== "N/A") {
+      if (deviceName && deviceName !== "Not Available") {
         requestBody.device_name = deviceName;
       }
       if (callerId) {
@@ -1104,12 +1254,28 @@ export const deviceAPI = {
   // Get device details from Intune
   getDeviceDetails: async (deviceName: string) => {
     try {
+      logger.debug(`[Intune API] Calling /intune/devices/name/${deviceName}`);
       const response = await apiClient.get<ApiResponse<IntuneDevicesData>>(
         `/intune/devices/name/${encodeURIComponent(deviceName)}`
       );
+
+      // Log the full API response
+      logger.debug(`[Intune API] Response for ${deviceName}:`, {
+        success: response.data.success,
+        deviceCount: response.data.data.devices.length,
+        firstDevice: response.data.data.devices[0] || null,
+      });
+
       if (response.data.success && response.data.data.devices.length > 0) {
+        const device = response.data.data.devices[0];
+        logger.info(`[Intune API] Returning device:`, {
+          deviceId: device.deviceId,
+          deviceName: device.deviceName,
+          userPrincipalName: device.userPrincipalName,
+          serialNumber: device.serialNumber,
+        });
         return {
-          data: response.data.data.devices[0],
+          data: device,
           success: true,
           message: response.data.message,
         };
@@ -1154,13 +1320,17 @@ export const deviceAPI = {
       let finalDeviceName = deviceName;
 
       // Step 1: If device name is empty and caller ID exists, get device name from ServiceNow
-      if ((!deviceName || deviceName === "N/A") && callerId) {
-        logger.debug(`Fetching device name for caller: ${callerId}`);
+      if ((!deviceName || deviceName === "Not Available") && callerId) {
+        logger.debug(
+          `[Orchestrated] Step 1: Fetching device name for caller: ${callerId}`
+        );
         const devicesResponse = await deviceAPI.getUserDevices(callerId);
 
         if (devicesResponse.success && devicesResponse.data.length > 0) {
           finalDeviceName = devicesResponse.data[0].name;
-          logger.debug(`Found device name: ${finalDeviceName}`);
+          logger.info(
+            `[Orchestrated] Step 1 Result: Found device "${finalDeviceName}" for caller "${callerId}"`
+          );
         } else {
           logger.warn("No devices found for caller");
           return {
@@ -1172,9 +1342,18 @@ export const deviceAPI = {
       }
 
       // Step 2: Get device details from Intune if we have a device name
-      if (finalDeviceName && finalDeviceName !== "N/A") {
-        logger.debug(`Fetching device details for: ${finalDeviceName}`);
-        return await deviceAPI.getDeviceDetails(finalDeviceName);
+      if (finalDeviceName && finalDeviceName !== "Not Available") {
+        logger.info(
+          `[Orchestrated] Step 2: Fetching Intune details for device: ${finalDeviceName}`
+        );
+        const intuneResult = await deviceAPI.getDeviceDetails(finalDeviceName);
+        logger.info(`[Orchestrated] Step 2 Result:`, {
+          success: intuneResult.success,
+          hasData: !!intuneResult.data,
+          deviceId: intuneResult.data?.deviceId,
+          deviceName: intuneResult.data?.deviceName,
+        });
+        return intuneResult;
       }
 
       return {

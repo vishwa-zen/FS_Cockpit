@@ -10,30 +10,30 @@ import {
   SearchIcon,
 } from "lucide-react";
 import React, { useState } from "react";
-import { useTickets } from "../shared/TicketsContext";
-import { useAuth } from "../../../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { SystemStatusBar } from "../../../../components/SystemStatusBar";
-import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
-import { Button } from "../../../../components/ui/button";
+import { useAuth } from "../hooks/useAuth";
+import { useTickets } from "../context";
+import { TicketsList } from "../components/tickets";
+import { SystemStatusBar } from "../components/SystemStatusBar";
+import { Avatar, AvatarFallback } from "../components/ui/avatar";
+import { Button } from "../components/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardDescription,
   CardTitle,
-} from "../../../../components/ui/card";
-import TicketsList from "../shared/TicketsList";
+} from "../components/ui/card";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "../../../../components/ui/tabs";
+} from "../components/ui/tabs";
 
 // Tickets will be provided by the TicketsContext
 
-export const IssueSearchSection = (): JSX.Element => {
+export const SearchPage = (): JSX.Element => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("INC0012");
@@ -68,12 +68,11 @@ export const IssueSearchSection = (): JSX.Element => {
   };
 
   const handleLogout = async () => {
-    console.log("[IssueSearchSection] Logout button clicked");
     try {
       await logout();
       // logout() handles navigation, so no need to navigate here
     } catch (error) {
-      console.error("[IssueSearchSection] Logout error:", error);
+      console.error("[SearchPage] Logout error:", error);
       // Fallback navigation if logout fails
       navigate("/login");
     }
@@ -128,7 +127,7 @@ export const IssueSearchSection = (): JSX.Element => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left hover:bg-[#F8F9FB] transition-colors flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4 text-[#61738d]" />
                   <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm">
@@ -141,7 +140,7 @@ export const IssueSearchSection = (): JSX.Element => {
         </div>
       </header>
 
-      <div className="flex flex-1 bg-slate-50 overflow-hidden">
+      <div className="flex flex-1 bg-[#F8F9FB] overflow-hidden">
         <aside className="hidden md:flex md:w-80 lg:w-96 xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col">
           <Tabs
             defaultValue={activeTab || "search"}
@@ -151,7 +150,7 @@ export const IssueSearchSection = (): JSX.Element => {
             <TabsList className="w-full h-[47px] bg-white rounded-none border-b-[0.67px] border-[#e1e8f0] p-0">
               <TabsTrigger
                 value="search"
-                className="flex-1 h-full rounded-none data-[state=active]:bg-[#eff6ff] data-[state=active]:border-[#155cfb] data-[state=active]:border data-[state=active]:text-[#1347e5] gap-3.5 px-[35px] py-[11px]"
+                className="flex-1 h-full rounded-none data-[state=active]:bg-[#eff6ff] data-[state=active]:border-[#155cfb] data-[state=active]:border data-[state=active]:text-[#3B82F6] gap-3.5 px-[35px] py-[11px]"
               >
                 <Search className="w-4 h-4" />
                 <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm leading-5">
@@ -272,9 +271,9 @@ export const IssueSearchSection = (): JSX.Element => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#1347e5] text-sm">
+                <div className="flex items-center gap-2 px-4 py-2 bg-[#EFF6FF] rounded-lg border border-[#3B82F6]/20">
+                  <div className="w-2 h-2 bg-[#EFF6FF]0 rounded-full animate-pulse" />
+                  <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#3B82F6] text-sm">
                     Coming Soon
                   </span>
                 </div>
@@ -316,7 +315,7 @@ export const IssueSearchSection = (): JSX.Element => {
                           }}
                           className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
                             searchType === type
-                              ? "bg-blue-50 text-[#1347e5]"
+                              ? "bg-[#EFF6FF] text-[#3B82F6]"
                               : ""
                           }`}
                         >
@@ -339,7 +338,7 @@ export const IssueSearchSection = (): JSX.Element => {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col items-center justify-center pt-12 md:pt-24 lg:pt-[180px] pb-0 px-4 md:px-12 lg:px-24 xl:px-[175px] bg-slate-50 min-h-[552px]">
+        <main className="flex-1 flex flex-col items-center justify-center pt-12 md:pt-24 lg:pt-[180px] pb-0 px-4 md:px-12 lg:px-24 xl:px-[175px] bg-[#F8F9FB] min-h-[552px]">
           {activeTab === "copilot" ? (
             <div
               className="flex flex-col items-center gap-8 translate-y-[-1rem] animate-fade-in opacity-0"
@@ -356,9 +355,9 @@ export const IssueSearchSection = (): JSX.Element => {
                   Your intelligent assistant for diagnostics and troubleshooting
                 </p>
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#1347e5] text-sm">
+              <div className="flex items-center gap-2 px-4 py-2 bg-[#EFF6FF] rounded-lg border border-[#3B82F6]/20">
+                <div className="w-2 h-2 bg-[#EFF6FF]0 rounded-full animate-pulse" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#3B82F6] text-sm">
                   Coming Soon
                 </span>
               </div>

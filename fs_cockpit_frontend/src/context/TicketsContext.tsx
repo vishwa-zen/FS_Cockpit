@@ -7,7 +7,7 @@ import {
   useMemo,
   ReactNode,
 } from "react";
-import { ticketsAPI } from "../../../../services/api";
+import { ticketsAPI, PaginationInfo } from "../services/api";
 
 interface Ticket {
   id: string;
@@ -32,11 +32,17 @@ interface TicketsContextValue {
   error: string | null;
   selectedTicketId?: string | null;
   activeTab?: string | null;
-  fetchTickets: () => Promise<void>;
+  pagination: PaginationInfo | null;
+  hasMore: boolean;
+  limit: number;
+  fetchTickets: (reset?: boolean, customLimit?: number) => Promise<void>;
+  loadMoreTickets: () => Promise<void>;
+  setLimit: (limit: number) => void;
   searchTickets: (query: string, type: string) => Promise<Ticket[]>;
   clearSearchResults: () => void;
   setSelectedTicketId: (id?: string | null) => void;
   setActiveTab: (tab: string) => void;
+  updateTicketDevice: (ticketId: string, deviceName: string) => void;
 }
 
 const TicketsContext = createContext<TicketsContextValue | undefined>(
@@ -53,32 +59,54 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
     string | null
   >(null);
   const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [currentOffset, setCurrentOffset] = useState<number>(0);
+  const [limit, setLimit] = useState<number>(25);
 
-  const fetchTickets = useCallback(async () => {
-    console.log("[TicketsContext] fetchTickets called");
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await ticketsAPI.getMyTickets();
-      if (response.success && response.data && Array.isArray(response.data)) {
-        setMyTickets(response.data as Ticket[]);
-        console.log(
-          "[TicketsContext] ✅ Fetched",
-          response.data.length,
-          "tickets"
-        );
-      } else {
-        setMyTickets([]);
-        setError("No tickets available");
+  const fetchTickets = useCallback(
+    async (reset: boolean = false, customLimit?: number) => {
+      setIsLoading(true);
+      setError(null);
+
+      const effectiveLimit = customLimit ?? limit;
+      const offset = reset ? 0 : currentOffset;
+
+      try {
+        const response = await ticketsAPI.getMyTickets(effectiveLimit, offset);
+        if (response.success && response.data && Array.isArray(response.data)) {
+          if (reset) {
+            setMyTickets(response.data as Ticket[]);
+            setCurrentOffset(effectiveLimit);
+          } else {
+            setMyTickets((prev) => [...prev, ...(response.data as Ticket[])]);
+            setCurrentOffset((prev) => prev + effectiveLimit);
+          }
+          setPagination(response.pagination || null);
+        } else {
+          if (reset) {
+            setMyTickets([]);
+            setPagination(null);
+          }
+          setError("No tickets available");
+        }
+      } catch (err) {
+        console.error("Failed to fetch tickets:", err);
+        if (reset) {
+          setMyTickets([]);
+          setPagination(null);
+        }
+        setError("Failed to load tickets");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch tickets:", err);
-      setMyTickets([]);
-      setError("Failed to load tickets");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [currentOffset, limit]
+  );
+
+  const loadMoreTickets = useCallback(async () => {
+    if (!pagination?.has_more || isLoading) return;
+    await fetchTickets(false);
+  }, [pagination, isLoading, fetchTickets]);
 
   const searchTickets = useCallback(async (query: string, type: string) => {
     setIsSearching(true);
@@ -126,25 +154,18 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
     const account = localStorage.getItem("msal.account");
 
     if (token && account) {
-      console.log("[TicketsContext] User authenticated, fetching tickets");
-      fetchTickets();
+      fetchTickets(true);
     } else {
-      console.log(
-        "[TicketsContext] No auth token found, skipping ticket fetch"
-      );
       setIsLoading(false);
     }
 
     // Listen for login complete event
     const handleLoginComplete = () => {
-      console.log(
-        "[TicketsContext] 🔔 Login complete event received, fetching tickets"
-      );
       const newToken = localStorage.getItem("msal.token");
       const newAccount = localStorage.getItem("msal.account");
 
       if (newToken && newAccount) {
-        fetchTickets();
+        fetchTickets(true);
       }
     };
 
@@ -164,6 +185,25 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
     setActiveTab(tab);
   }, []);
 
+  const updateTicketDevice = useCallback(
+    (ticketId: string, deviceName: string) => {
+      console.log(
+        `[TicketsContext] 🔄 Updating ticket ${ticketId} device to: ${deviceName}`
+      );
+      setMyTickets((prev) => {
+        const updated = prev.map((ticket) =>
+          ticket.id === ticketId ? { ...ticket, device: deviceName } : ticket
+        );
+        console.log(`[TicketsContext] ✅ Ticket updated in state:`, {
+          before: prev.find((t) => t.id === ticketId)?.device,
+          after: updated.find((t) => t.id === ticketId)?.device,
+        });
+        return updated;
+      });
+    },
+    []
+  );
+
   const value: TicketsContextValue = useMemo(
     () => ({
       myTickets,
@@ -173,11 +213,17 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
       error,
       selectedTicketId: selectedTicketIdState,
       activeTab,
+      pagination,
+      hasMore: pagination?.has_more || false,
+      limit,
       fetchTickets,
+      loadMoreTickets,
+      setLimit,
       searchTickets,
       clearSearchResults,
       setSelectedTicketId,
       setActiveTab: setActiveTabCallback,
+      updateTicketDevice,
     }),
     [
       myTickets,
@@ -187,11 +233,15 @@ export const TicketsProvider = ({ children }: { children: ReactNode }) => {
       error,
       selectedTicketIdState,
       activeTab,
+      pagination,
+      limit,
       fetchTickets,
+      loadMoreTickets,
       searchTickets,
       clearSearchResults,
       setSelectedTicketId,
       setActiveTabCallback,
+      updateTicketDevice,
     ]
   );
 

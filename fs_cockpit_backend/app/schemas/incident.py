@@ -1,16 +1,20 @@
-""" Data Transfer Objects (DTOs) for ServiceNow Incident records."""
-from typing import Optional
-from typing import List
+"""Data Transfer Objects (DTOs) for ServiceNow Incident records."""
+
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 
 class IncidentDTO(BaseModel):
     """Data Transfer Object representing a ServiceNow Incident."""
+
     sysId: str
     incidentNumber: str
     shortDescription: Optional[str]
     description: Optional[str]  # Full detailed description
-    category: Optional[str]  # Incident category (e.g., 'hardware', 'software', 'network', 'inquiry')
+    category: Optional[
+        str
+    ]  # Incident category (e.g., 'hardware', 'software', 'network', 'inquiry')
     subcategory: Optional[str]  # Incident subcategory for more specific classification
     priority: Optional[str]
     impact: Optional[int]
@@ -25,6 +29,23 @@ class IncidentDTO(BaseModel):
     lastUpdatedAt: Optional[str]
 
 
+class PaginationMetadata(BaseModel):
+    """Pagination metadata for list responses."""
+
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+
+
 class IncidentListResponse(BaseModel):
     """Response model containing a list of incidents."""
+
     incidents: List[IncidentDTO]
+
+
+class PaginatedIncidentListResponse(BaseModel):
+    """Response model containing paginated incidents with metadata."""
+
+    incidents: List[IncidentDTO]
+    pagination: PaginationMetadata
