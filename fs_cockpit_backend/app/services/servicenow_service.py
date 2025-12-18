@@ -306,6 +306,7 @@ class ServiceNowService:
             category=IncidentUtils.extract_str(rec.get("category")),
             subcategory=IncidentUtils.extract_str(rec.get("subcategory")),
             priority=IncidentUtils.extract_str(rec.get("priority")),
+            severity=IncidentUtils.extract_str(rec.get("severity")),
             impact=impact_val,
             status=status,
             active=rec.get("active") in (True, "true", "True", "1", 1),

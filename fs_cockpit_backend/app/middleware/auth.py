@@ -120,17 +120,6 @@ class AzureADAuthMiddleware(BaseHTTPMiddleware):
         # Validate token
         try:
             user_info = await self._validate_token(token)
-            request.state.user = user_info
-
-            logger.debug(
-                "Token validated successfully",
-                user_email=user_info.get("email"),
-                user_oid=user_info.get("oid"),
-                request_id=get_request_id(request),
-            )
-
-            return await call_next(request)
-
         except jwt.ExpiredSignatureError:
             return self._unauthorized_response(
                 request, "Token has expired", error_code="TOKEN_EXPIRED"
@@ -144,6 +133,7 @@ class AzureADAuthMiddleware(BaseHTTPMiddleware):
                 request, "Invalid token issuer", error_code="INVALID_ISSUER"
             )
         except PyJWTError as e:
+            # Catches all other JWT-related errors (invalid signature, malformed token, etc.)
             logger.warning(
                 "JWT validation failed",
                 error=str(e),
@@ -153,16 +143,19 @@ class AzureADAuthMiddleware(BaseHTTPMiddleware):
             return self._unauthorized_response(
                 request, f"Token validation failed: {str(e)}", error_code="INVALID_TOKEN"
             )
-        except Exception as e:
-            logger.error(
-                "Unexpected error during token validation",
-                error=str(e),
-                error_type=type(e).__name__,
-                request_id=get_request_id(request),
-            )
-            return self._unauthorized_response(
-                request, "Internal authentication error", error_code="AUTH_ERROR"
-            )
+
+        # Token validated successfully - attach user info and continue
+        request.state.user = user_info
+
+        logger.debug(
+            "Token validated successfully",
+            user_email=user_info.get("email"),
+            user_oid=user_info.get("oid"),
+            request_id=get_request_id(request),
+        )
+
+        # Let downstream errors propagate naturally instead of catching them here
+        return await call_next(request)
 
     async def _validate_token(self, token: str) -> Dict[str, Any]:
         """

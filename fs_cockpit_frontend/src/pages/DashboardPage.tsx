@@ -92,7 +92,7 @@ export const DashboardPage = (): JSX.Element => {
 
   const [_searchQuery, _setSearchQuery] = useState("");
   const [myTicketsSearchQuery, setMyTicketsSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"ticket" | "priority">("ticket");
+  const [sortBy, setSortBy] = useState<"ticket" | "priority" | "severity">("ticket");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const {
     myTickets,
@@ -183,7 +183,7 @@ export const DashboardPage = (): JSX.Element => {
     const sorted = [...filtered].sort((a, b) => {
       if (sortBy === "ticket") {
         return a.id.localeCompare(b.id);
-      } else {
+      } else if (sortBy === "priority") {
         // Sort by priority: High > Medium > Low
         const priorityOrder: { [key: string]: number } = {
           High: 1,
@@ -193,6 +193,11 @@ export const DashboardPage = (): JSX.Element => {
         const aPriority = priorityOrder[a.priority || "Low"] || 99;
         const bPriority = priorityOrder[b.priority || "Low"] || 99;
         return aPriority - bPriority;
+      } else {
+        // Sort by severity: Higher severity number = higher urgency (descending)
+        const aSeverity = parseInt(a.severity || "0");
+        const bSeverity = parseInt(b.severity || "0");
+        return bSeverity - aSeverity;
       }
     });
 
@@ -671,7 +676,7 @@ export const DashboardPage = (): JSX.Element => {
                               className="text-xs text-brand-secondary hover:underline font-sans flex items-center gap-1"
                             >
                               Sort:{" "}
-                              {sortBy === "ticket" ? "Ticket #" : "Priority"}
+                              {sortBy === "ticket" ? "Ticket #" : sortBy === "priority" ? "Priority" : "Severity"}
                               <ChevronDownIcon className="w-3 h-3" />
                             </button>
                             {showSortDropdown && (
@@ -706,6 +711,19 @@ export const DashboardPage = (): JSX.Element => {
                                     }`}
                                   >
                                     Priority
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSortBy("severity");
+                                      setShowSortDropdown(false);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-xs hover:bg-[#F8F9FB] transition-colors ${
+                                      sortBy === "severity"
+                                        ? "bg-[#EFF6FF] text-[#3B82F6]"
+                                        : ""
+                                    }`}
+                                  >
+                                    Severity
                                   </button>
                                 </div>
                               </>

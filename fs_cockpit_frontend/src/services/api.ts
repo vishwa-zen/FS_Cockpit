@@ -191,6 +191,7 @@ export interface Incident {
   incidentNumber: string;
   shortDescription: string;
   priority: string;
+  severity?: string;
   impact: number;
   status: string;
   active: boolean;

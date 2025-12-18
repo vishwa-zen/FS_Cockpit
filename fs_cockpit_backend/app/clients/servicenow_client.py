@@ -145,7 +145,7 @@ class ServiceNowClient(BaseClient):
         limit: int = 50,
         sysparm_display_value: str = "all",
         sysparm_exclude_reference_link: bool = True,
-        sysparm_fields: str = "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+        sysparm_fields: str = "sys_id,number,short_description,description,category,subcategory,state,priority,severity,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
         cmdb_ci_name: str | None = None,
     ) -> dict:
         """
@@ -225,7 +225,7 @@ class ServiceNowClient(BaseClient):
             "active": "true",
             "sysparm_limit": 50,
             "sysparm_fields": _fields
-            or "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+            or "sys_id,number,short_description,description,category,subcategory,state,priority,severity,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
         }
         # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
         if limit is not None:
@@ -258,7 +258,7 @@ class ServiceNowClient(BaseClient):
         params = {
             "cmdb_ci.name": device_name,
             "sysparm_fields": _fields
-            or "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+            or "sys_id,number,short_description,description,category,subcategory,state,priority,severity,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
         }
         # fields param intentionally not sent to ServiceNow to keep API calls generic; mapping/filtering is handled in service layer
         if limit is not None:
@@ -307,7 +307,7 @@ class ServiceNowClient(BaseClient):
         endpoint = "/api/now/table/incident"
         params = {
             "sysparm_query": f"number={incident_number}",
-            "sysparm_fields": "sys_id,number,short_description,description,category,subcategory,state,priority,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
+            "sysparm_fields": "sys_id,number,short_description,description,category,subcategory,state,priority,severity,impact,active,assigned_to,sys_created_by,caller_id,cmdb_ci,cmdb_ci.name,opened_at,sys_updated_on",
             "sysparm_display_value": "all",
             "sysparm_limit": 1,
         }

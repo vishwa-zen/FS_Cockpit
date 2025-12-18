@@ -17,6 +17,7 @@ class IncidentDTO(BaseModel):
     ]  # Incident category (e.g., 'hardware', 'software', 'network', 'inquiry')
     subcategory: Optional[str]  # Incident subcategory for more specific classification
     priority: Optional[str]
+    severity: Optional[str]  # Incident severity level
     impact: Optional[int]
     status: Optional[str]  # This will now contain state.display_value
     active: Optional[bool]
