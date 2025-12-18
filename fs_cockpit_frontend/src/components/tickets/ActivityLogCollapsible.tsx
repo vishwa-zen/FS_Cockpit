@@ -1,13 +1,52 @@
+/**
+ * ActivityLogCollapsible Component
+ *
+ * Collapsible section that displays a chronological list of ticket activities and comments.
+ * Provides toggle control to expand/collapse the activity timeline.
+ *
+ * Features:
+ * - Expandable/collapsible interface with chevron icon indicator
+ * - Activity count badge in header
+ * - Loading state with spinner animation
+ * - Error state with user-friendly message
+ * - Empty state when no activities exist
+ * - Timeline-style layout with user avatars
+ * - Smooth slide-in animation when expanded
+ *
+ * @example
+ * ```tsx
+ * <ActivityLogCollapsible
+ *   activities={[
+ *     { user: "John Doe", timestamp: "2 hours ago", message: "Assigned ticket to support team" },
+ *     { user: "Jane Smith", timestamp: "1 hour ago", message: "Investigating network issue" }
+ *   ]}
+ *   isExpanded={isExpanded}
+ *   onToggle={() => setIsExpanded(!isExpanded)}
+ *   isLoading={false}
+ *   error={null}
+ * />
+ * ```
+ */
 import React from "react";
 import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { ActivityItem } from "./ActivityLogPanel";
-import { Avatar } from "../../components/ui/avatar";
+import { Avatar } from "@ui/avatar";
 
+/**
+ * Props for the ActivityLogCollapsible component
+ *
+ * @interface ActivityLogCollapsibleProps
+ */
 interface ActivityLogCollapsibleProps {
+  /** Array of activity items to display in chronological order */
   activities: ActivityItem[];
+  /** Whether the activity log section is expanded */
   isExpanded: boolean;
+  /** Callback fired when expand/collapse button is clicked */
   onToggle: () => void;
+  /** Whether activities are currently being fetched from API */
   isLoading?: boolean;
+  /** Error message to display if activity fetch failed */
   error?: string | null;
 }
 
@@ -25,10 +64,10 @@ export const ActivityLogCollapsible: React.FC<ActivityLogCollapsibleProps> = ({
         className="w-full flex items-center justify-between py-4 hover:bg-[#F9FAFB] transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-[#0E162B]">
+          <span className="[font-family:'Arial-Regular',Helvetica] text-sm font-medium text-[#0E162B]">
             Activity Log
           </span>
-          <span className="text-xs text-[#61738D]">
+          <span className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D]">
             ({activities.length} activities)
           </span>
         </div>
@@ -48,15 +87,17 @@ export const ActivityLogCollapsible: React.FC<ActivityLogCollapsibleProps> = ({
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <MessageSquare className="w-12 h-12 text-[#9CA3AF] mb-3" />
-              <p className="text-sm text-[#61738D]">{error}</p>
+              <p className="[font-family:'Arial-Regular',Helvetica] text-sm text-[#61738D]">
+                {error}
+              </p>
             </div>
           ) : activities.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <MessageSquare className="w-12 h-12 text-[#9CA3AF] mb-3" />
-              <p className="text-sm font-medium text-[#0E162B] mb-1">
+              <p className="[font-family:'Arial-Regular',Helvetica] text-sm font-medium text-[#0E162B] mb-1">
                 No Activity Yet
               </p>
-              <p className="text-xs text-[#61738D]">
+              <p className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D]">
                 Activity and comments will appear here
               </p>
             </div>
@@ -71,20 +112,22 @@ export const ActivityLogCollapsible: React.FC<ActivityLogCollapsibleProps> = ({
                 }`}
               >
                 <Avatar className="w-8 h-8 rounded-full bg-[#EFF6FF] flex items-center justify-center border border-[#BFDBFE]">
-                  <span className="text-xs font-medium text-[#3B82F6]">
+                  <span className="[font-family:'Arial-Regular',Helvetica] text-xs font-medium text-[#3B82F6]">
                     {activity.user.charAt(0).toUpperCase()}
                   </span>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-[#0E162B]">
+                    <span className="[font-family:'Arial-Regular',Helvetica] text-sm font-medium text-[#0E162B]">
                       {activity.user}
                     </span>
-                    <span className="text-xs text-[#61738D]">
+                    <span className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D]">
                       • {activity.timestamp}
                     </span>
                   </div>
-                  <p className="text-sm text-[#61738D]">{activity.message}</p>
+                  <p className="[font-family:'Arial-Regular',Helvetica] text-sm text-[#61738D]">
+                    {activity.message}
+                  </p>
                 </div>
               </div>
             ))

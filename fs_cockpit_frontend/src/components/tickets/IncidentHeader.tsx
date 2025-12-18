@@ -1,16 +1,56 @@
+/**
+ * IncidentHeader Component
+ *
+ * Displays incident header with ticket badge, title, and metadata grid.
+ * Similar to TicketHeader but with different styling and layout structure.
+ *
+ * Features:
+ * - Incident number badge with icon
+ * - Title display with better spacing
+ * - Responsive metadata grid (1-4 columns)
+ * - Color-coded status and priority badges
+ * - Complete incident metadata display
+ *
+ * @example
+ * <IncidentHeader
+ *   incidentNumber="INC0012345"
+ *   title="Cannot access email"
+ *   status="Open"
+ *   priority="High"
+ *   userDisplayName="John Doe"
+ *   deviceName="LAPTOP-ABC123"
+ *   created="2025-12-18T10:00:00Z"
+ *   assignedTo="Support Team"
+ *   category="Email"
+ * />
+ */
 import React from "react";
-import { Badge } from "../../components/ui/badge";
+import { Badge } from "@ui/badge";
 import { TicketIcon } from "lucide-react";
 
+/**
+ * Props for the IncidentHeader component
+ *
+ * @interface IncidentHeaderProps
+ */
 export interface IncidentHeaderProps {
+  /** Incident number (e.g., INC0012345) */
   incidentNumber: string;
+  /** Incident title/description */
   title: string;
+  /** Current status */
   status: string;
+  /** Priority level */
   priority: string;
+  /** User who reported incident */
   userDisplayName: string;
+  /** Associated device */
   deviceName: string;
+  /** Creation timestamp */
   created: string;
+  /** Assigned technician */
   assignedTo: string;
+  /** Incident category */
   category: string;
 }
 
@@ -25,6 +65,11 @@ export const IncidentHeader: React.FC<IncidentHeaderProps> = ({
   assignedTo,
   category,
 }) => {
+  /**
+   * Get status badge color classes
+   * @param {string} status - Incident status
+   * @returns {string} Tailwind CSS classes
+   */
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
     if (statusLower.includes("progress"))
@@ -36,6 +81,11 @@ export const IncidentHeader: React.FC<IncidentHeaderProps> = ({
     return "bg-gray-100 text-gray-700 border-gray-300";
   };
 
+  /**
+   * Get priority badge color classes
+   * @param {string} priority - Priority level
+   * @returns {string} Tailwind CSS classes
+   */
   const getPriorityColor = (priority: string) => {
     const priorityLower = priority.toLowerCase();
     if (priorityLower === "high")

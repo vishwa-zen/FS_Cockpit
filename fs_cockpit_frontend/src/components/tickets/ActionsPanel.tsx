@@ -1,25 +1,80 @@
+/**
+ * ActionsPanel Component
+ *
+ * Displays recommended remote actions from NextThink for incident remediation.
+ * Shows actionable items with priority levels, execution time estimates, and confidence scores.
+ *
+ * Features:
+ * - Loading state with skeleton placeholders
+ * - Empty state with lightning bolt icon
+ * - Priority badges (High = red, Medium = yellow, Low = gray)
+ * - Execution time and confidence display
+ * - Execute button with callback handler
+ * - Responsive card layout with hover effects
+ * - Mobile-optimized button and text sizing
+ *
+ * @example
+ * ```tsx
+ * <ActionsPanel
+ *   items={[
+ *     {
+ *       title: "Restart Network Adapter",
+ *       priority: "High",
+ *       description: "Remotely restart the network adapter to resolve connectivity issues",
+ *       duration: "~2 minutes",
+ *       confidence: "95% confidence"
+ *     }
+ *   ]}
+ *   isLoading={false}
+ *   onExecute={(action) => console.log('Executing:', action.title)}
+ * />
+ * ```
+ */
 import React from "react";
-import { Card } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
+import { Card } from "@ui/card";
+import { Badge } from "@ui/badge";
+import { Button } from "@ui/button";
 import { Zap } from "lucide-react";
 
+/**
+ * Remote action item structure
+ *
+ * @interface ActionItem
+ */
 export interface ActionItem {
+  /** Action title/name */
   title: string;
+  /** Priority level (High, Medium, Low) */
   priority: string;
+  /** Detailed description of what the action does */
   description: string;
+  /** Estimated execution time (e.g., "~2 minutes") */
   duration: string;
+  /** Confidence score (e.g., "95% confidence") */
   confidence: string;
 }
 
+/**
+ * Props for the ActionsPanel component
+ *
+ * @interface ActionsPanelProps
+ */
 interface ActionsPanelProps {
+  /** Array of recommended actions to display */
   items: ActionItem[];
+  /** Whether actions are currently being fetched from API */
   isLoading?: boolean;
+  /** Callback fired when Execute button is clicked */
   onExecute?: (action: ActionItem) => void;
 }
 
 export const ActionsPanel: React.FC<ActionsPanelProps> = React.memo(
   ({ items, isLoading, onExecute }) => {
+    /**
+     * Determines badge color classes based on action priority
+     * @param {string} priority - Priority level (High, Medium, Low)
+     * @returns {string} Tailwind CSS classes for priority badge
+     */
     const getPriorityColor = (priority: string) => {
       const priorityLower = priority.toLowerCase();
       if (priorityLower === "high")

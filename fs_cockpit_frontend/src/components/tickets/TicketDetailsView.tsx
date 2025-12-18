@@ -18,16 +18,13 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import {
-  ActionsIcon,
-  IncidentIcon,
-  KnowledgeIcon,
-} from "../../components/icons";
-import { formatPriority, formatStatus } from "../../lib/utils";
-import { useTickets } from "../../context/TicketsContext";
+import { Card, CardContent } from "@ui/card";
+import { Badge } from "@ui/badge";
+import { Button } from "@ui/button";
+import { ActionsIcon, IncidentIcon, KnowledgeIcon } from "@components/icons";
+import { formatPriority, formatStatus } from "@lib/utils";
+import { useTickets } from "@context/TicketsContext";
+import { ROUTES } from "@constants";
 import {
   ClockIcon,
   CalendarIcon,
@@ -63,7 +60,7 @@ import {
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
-} from "../../components/ui/tooltip";
+} from "@ui/tooltip";
 import {
   deviceAPI,
   ticketsAPI,
@@ -72,7 +69,7 @@ import {
   IntuneDevice,
   RemoteAction,
   SolutionSummaryData,
-} from "../../services/api";
+} from "@services/api";
 
 /**
  * Ticket interface definition
@@ -120,7 +117,7 @@ const getActionStatusColor = (status: string): string => {
   return "bg-[#f3f4f6] text-[#374151] border-transparent";
 };
 
-export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
+const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   ticket: initialTicket,
   showSustainabilityScore = false,
 }) => {
@@ -166,15 +163,6 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       setIsLoadingKnowledge(true);
       setIsLoadingActions(true);
 
-      // Debug: Log ticket info being fetched
-      console.log(
-        `[TicketDetailsView] Fetching data for ticket: ${
-          initialTicket.id
-        }, device: ${initialTicket.device || "Not Available"}, caller: ${
-          initialTicket.callerId || "Not Available"
-        }`
-      );
-
       // Execute all API calls in parallel
       const results = await Promise.allSettled([
         // 1. Fetch ticket details
@@ -206,15 +194,6 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       // Process ticket details
       if (results[0].status === "fulfilled") {
         const result = results[0].value;
-        console.log(
-          `[TicketDetailsView] Ticket details API result for ${initialTicket.id}:`,
-          {
-            success: result.success,
-            hasData: !!result.data,
-            deviceInResponse: result.data?.device,
-            deviceInInitialTicket: initialTicket.device,
-          }
-        );
 
         if (result.success && result.data) {
           const ticketData = {
@@ -230,19 +209,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
             result.data.device !== "Not Available" &&
             (!initialTicket.device || initialTicket.device === "Not Available")
           ) {
-            console.log(
-              `[TicketDetailsView] ✅ Updating ticket ${initialTicket.id} device from "${initialTicket.device}" to "${result.data.device}"`
-            );
             updateTicketDevice(initialTicket.id, result.data.device);
-          } else {
-            console.log(
-              `[TicketDetailsView] ⏭️ Skipping device update for ${initialTicket.id}:`,
-              {
-                hasDevice: !!result.data.device,
-                deviceValue: result.data.device,
-                initialDevice: initialTicket.device,
-              }
-            );
           }
         } else {
           setTicket(initialTicket);
@@ -256,46 +223,15 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       if (results[1].status === "fulfilled") {
         const result = results[1].value;
 
-        // Debug: Log what we got from the API
-        console.log(
-          `[TicketDetailsView] 📦 Device API result for ${initialTicket.id}:`,
-          {
-            success: result.success,
-            hasData: !!result.data,
-            message: result.message,
-          }
-        );
-
         if (result.success && result.data) {
-          console.log(
-            `[TicketDetailsView] Device details received for ticket ${initialTicket.id}:`,
-            result.data.deviceName
-          );
           setDeviceDetails(result.data);
           setDeviceError(null);
-
-          // Debug: Log the check values
-          console.log(`[TicketDetailsView] 🔍 Checking if should update:`, {
-            hasDeviceName: !!result.data.deviceName,
-            deviceNameValue: result.data.deviceName,
-            initialDevice: initialTicket.device,
-            initialDeviceIsEmpty: !initialTicket.device,
-            initialDeviceIsNA: initialTicket.device === "Not Available",
-            willUpdate: !!(
-              result.data.deviceName &&
-              (!initialTicket.device ||
-                initialTicket.device === "Not Available")
-            ),
-          });
 
           // Update device name in My Tickets list if it was missing
           if (
             result.data.deviceName &&
             (!initialTicket.device || initialTicket.device === "Not Available")
           ) {
-            console.log(
-              `[TicketDetailsView] ✅ Updating ticket ${initialTicket.id} device from "${initialTicket.device}" to "${result.data.deviceName}" (from Intune)`
-            );
             updateTicketDevice(initialTicket.id, result.data.deviceName);
           }
         } else {
@@ -441,7 +377,7 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
       <div className="w-full max-w-[1400px]">
         {/* Mobile back button */}
         <button
-          onClick={() => navigate("/home")}
+          onClick={() => navigate(ROUTES.HOME)}
           className="md:hidden flex items-center gap-2 text-[#155cfb] hover:text-[#1347e5] transition-colors mb-3 sm:mb-4"
         >
           <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1155,4 +1091,6 @@ export const TicketDetailsView: React.FC<TicketDetailsViewProps> = ({
   );
 };
 
-export default TicketDetailsView;
+TicketDetailsView.displayName = "TicketDetailsView";
+
+export { TicketDetailsView };

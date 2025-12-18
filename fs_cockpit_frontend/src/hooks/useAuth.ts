@@ -1,7 +1,52 @@
+/**
+ * @fileoverview Authentication Hook
+ *
+ * Custom React hook for managing user authentication state across the application.
+ * Integrates with MSAL for Azure AD B2C authentication and supports demo mode fallback.
+ *
+ * Features:
+ * - Automatic authentication state synchronization
+ * - MSAL event subscription for token updates
+ * - Demo mode support for offline testing
+ * - localStorage fallback for session persistence
+ * - Normalized user data extraction from ID token claims
+ *
+ * @module hooks/useAuth
+ * @requires @azure/msal-react - MSAL React hooks
+ * @requires @azure/msal-browser - MSAL browser events
+ */
+
 import { useMsal } from "@azure/msal-react";
 import { EventType } from "@azure/msal-browser";
 import { useEffect, useState } from "react";
 
+/**
+ * Authentication Hook
+ *
+ * Manages authentication state and user information for the application.
+ * Automatically syncs with MSAL authentication events and handles demo mode.
+ *
+ * @hook
+ * @returns {Object} Authentication state and methods
+ * @returns {boolean} returns.isAuthenticated - Whether user is authenticated
+ * @returns {Object|null} returns.user - Normalized user object with email, name, username
+ * @returns {Function} returns.logout - Async function to log out user
+ *
+ * @example
+ * const { isAuthenticated, user, logout } = useAuth();
+ *
+ * if (isAuthenticated) {
+ *   console.log('User email:', user.email);
+ *   // Render authenticated content
+ * }
+ *
+ * @example
+ * // Logout handler
+ * const handleLogout = async () => {
+ *   await logout();
+ *   navigate('/login');
+ * };
+ */
 export const useAuth = () => {
   const { instance, accounts } = useMsal();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -23,6 +68,16 @@ export const useAuth = () => {
       }
     }
 
+    /**
+     * Extract and Normalize User Data from MSAL Account
+     *
+     * Internal helper function that extracts user information from MSAL account object
+     * and normalizes various ID token claim formats into a consistent user object.
+     *
+     * @inner
+     * @param {any} msalAccountLocal - MSAL account object with idTokenClaims
+     * @returns {void} Updates component state via setUser and setIsAuthenticated
+     */
     const setUserFromMsalAccount = (msalAccountLocal: any) => {
       if (!msalAccountLocal) return;
       const accountLocal = msalAccountLocal as any;
@@ -124,6 +179,27 @@ export const useAuth = () => {
     };
   }, [accounts, instance]);
 
+  /**
+   * Logout User
+   *
+   * Logs out the current user and clears all authentication state.
+   * Handles both demo mode and MSAL authentication.
+   *
+   * Flow:
+   * 1. Check if in demo mode
+   * 2. Clear localStorage and sessionStorage
+   * 3. Reset authentication state
+   * 4. Redirect to login page
+   *
+   * @async
+   * @function logout
+   * @returns {Promise<void>}
+   * @throws {Error} Catches and handles all errors gracefully with forced logout
+   *
+   * @example
+   * await logout();
+   * // User is logged out and redirected to /login
+   */
   const logout = async () => {
     try {
       const isDemoMode = localStorage.getItem("demo.mode") === "true";

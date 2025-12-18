@@ -1,23 +1,75 @@
+/**
+ * KnowledgePanel Component
+ *
+ * Displays ServiceNow knowledge base articles related to the current incident.
+ * Shows relevant troubleshooting guides, solutions, and documentation with confidence scores.
+ *
+ * Features:
+ * - Loading state with skeleton placeholders
+ * - Empty state with lightbulb icon
+ * - Color-coded confidence/severity badges (green 80%+, orange 60-79%, red 40-59%, dark red <40%)
+ * - Responsive card layout with hover effects
+ * - Article source attribution
+ * - Mobile-optimized spacing and typography
+ *
+ * @example
+ * ```tsx
+ * <KnowledgePanel
+ *   items={[
+ *     {
+ *       title: "WiFi Connection Troubleshooting",
+ *       severity: "85",
+ *       description: "Step-by-step guide to resolve WiFi connectivity issues",
+ *       confidence: "High",
+ *       source: "KB0001234"
+ *     }
+ *   ]}
+ *   isLoading={false}
+ * />
+ * ```
+ */
 import React from "react";
-import { Card } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
+import { Card } from "@ui/card";
+import { Badge } from "@ui/badge";
 import { Lightbulb } from "lucide-react";
 
+/**
+ * Knowledge article item structure
+ *
+ * @interface KnowledgeItem
+ */
 export interface KnowledgeItem {
+  /** Article title/heading */
   title: string;
+  /** Confidence score as percentage string (0-100), used for badge color */
   severity?: string;
+  /** Article description or summary text */
   description: string;
+  /** Confidence level text (e.g., "High", "Medium", "Low") */
   confidence?: string;
+  /** Source reference (e.g., KB article number) */
   source?: string;
 }
 
+/**
+ * Props for the KnowledgePanel component
+ *
+ * @interface KnowledgePanelProps
+ */
 interface KnowledgePanelProps {
+  /** Array of knowledge articles to display */
   items: KnowledgeItem[];
+  /** Whether articles are currently being fetched from API */
   isLoading?: boolean;
 }
 
 export const KnowledgePanel: React.FC<KnowledgePanelProps> = React.memo(
   ({ items, isLoading }) => {
+    /**
+     * Determines badge color based on confidence/severity score
+     * @param {string} [severity] - Confidence percentage (0-100)
+     * @returns {string} Tailwind CSS classes for severity badge
+     */
     const getSeverityColor = (severity?: string) => {
       if (!severity) return "bg-[#10B981] text-white";
       const sev = parseInt(severity);

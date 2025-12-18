@@ -1,14 +1,59 @@
+/**
+ * ActivityLogPanel Component
+ *
+ * Displays a standalone panel of activity items with user avatars and timestamps.
+ * Used for showing ticket history, comments, and status changes.
+ *
+ * Features:
+ * - Card-based layout with header icon
+ * - User avatar indicators
+ * - Timestamp display for each activity
+ * - Border separators between items
+ * - Responsive text sizing
+ *
+ * @example
+ * ```tsx
+ * <ActivityLogPanel
+ *   activities={[
+ *     {
+ *       user: "John Doe",
+ *       timestamp: "2 hours ago",
+ *       message: "Updated ticket status to In Progress"
+ *     },
+ *     {
+ *       user: "Jane Smith",
+ *       timestamp: "1 hour ago",
+ *       message: "Added diagnostic information"
+ *     }
+ *   ]}
+ * />
+ * ```
+ */
 import React from "react";
-import { Card } from "../../components/ui/card";
+import { Card } from "@ui/card";
 import { MessageSquare, User } from "lucide-react";
 
+/**
+ * Individual activity item structure
+ *
+ * @interface ActivityItem
+ */
 export interface ActivityItem {
+  /** Name of the user who performed the activity */
   user: string;
+  /** Relative or absolute timestamp (e.g., "2 hours ago" or ISO date) */
   timestamp: string;
+  /** Description of the activity or comment text */
   message: string;
 }
 
+/**
+ * Props for the ActivityLogPanel component
+ *
+ * @interface ActivityLogPanelProps
+ */
 interface ActivityLogPanelProps {
+  /** Array of activity items to display */
   activities: ActivityItem[];
 }
 

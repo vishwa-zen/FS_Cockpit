@@ -1,20 +1,68 @@
+/**
+ * RecommendedActions Component
+ *
+ * Displays a list of recommended remediation actions in card format.
+ * Shows action title, priority, description, duration, confidence, and execute button.
+ *
+ * Features:
+ * - Card-based layout with hover effects
+ * - Color-coded priority badges (red=High, yellow=Medium, blue=Low)
+ * - Duration and confidence display
+ * - Execute action button with callback
+ * - Loading state with spinner
+ * - Empty state message
+ * - Responsive design
+ *
+ * @example
+ * <RecommendedActions
+ *   items={[
+ *     {
+ *       title: "Restart Network Adapter",
+ *       priority: "High",
+ *       description: "Restart the network adapter to resolve connectivity",
+ *       duration: "~2 minutes",
+ *       confidence: "95% confidence"
+ *     }
+ *   ]}
+ *   isLoading={false}
+ *   onExecute={(action) => console.log('Execute:', action.title)}
+ * />
+ */
 import React from "react";
-import { Card, CardContent } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
+import { Card, CardContent } from "@ui/card";
+import { Badge } from "@ui/badge";
+import { Button } from "@ui/button";
 import { ZapIcon } from "lucide-react";
 
+/**
+ * Recommended action item structure
+ *
+ * @interface ActionItem
+ */
 export interface ActionItem {
+  /** Action title/name */
   title: string;
+  /** Priority level (High, Medium, Low) */
   priority: string;
+  /** Action description */
   description: string;
+  /** Estimated duration */
   duration: string;
+  /** Confidence score */
   confidence: string;
 }
 
+/**
+ * Props for the RecommendedActions component
+ *
+ * @interface RecommendedActionsProps
+ */
 interface RecommendedActionsProps {
+  /** Array of action items to display */
   items: ActionItem[];
+  /** Whether actions are loading */
   isLoading?: boolean;
+  /** Callback fired when Execute button is clicked */
   onExecute?: (action: ActionItem) => void;
 }
 
@@ -23,6 +71,11 @@ export const RecommendedActions: React.FC<RecommendedActionsProps> = ({
   isLoading = false,
   onExecute,
 }) => {
+  /**
+   * Get badge color based on priority level
+   * @param {string} priority - Priority level
+   * @returns {string} Tailwind CSS classes
+   */
   const getPriorityBadgeColor = (priority: string) => {
     const priorityLower = priority.toLowerCase();
     if (priorityLower === "high") {

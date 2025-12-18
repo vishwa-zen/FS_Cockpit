@@ -1,5 +1,5 @@
 // Ticket List Components
-export { default as TicketsList } from "./TicketsList";
+export { TicketsList } from "./TicketsList";
 export { TicketDetailsView } from "./TicketDetailsView";
 export { TicketDetailsPanel } from "./TicketDetailsPanel";
 

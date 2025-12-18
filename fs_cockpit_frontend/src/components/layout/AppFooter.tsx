@@ -1,12 +1,57 @@
+/**
+ * AppFooter Component
+ *
+ * Application footer displaying system health status for backend services.
+ * Shows color-coded status indicators for ServiceNow, Techyon, NextThink, and Intune/SCCM.
+ *
+ * Features:
+ * - Real-time service health indicators (green=healthy, orange=unhealthy)
+ * - Multiple service status display in horizontal layout
+ * - "Details" link for expanded health metrics view
+ * - Default service configuration with override support
+ * - Compact footer design with border separation
+ *
+ * Status Colors:
+ * - Green (#10B981): Service is healthy and operational
+ * - Orange (#F59E0B): Service is experiencing issues or down
+ *
+ * @example
+ * // Using default services
+ * <AppFooter onDetailsClick={() => setShowHealthModal(true)} />
+ *
+ * @example
+ * // Custom service status
+ * <AppFooter
+ *   services={[
+ *     { name: "ServiceNow", isHealthy: true },
+ *     { name: "Intune", isHealthy: false }
+ *   ]}
+ *   onDetailsClick={handleDetailsClick}
+ * />
+ */
 import React from "react";
 
+/**
+ * Service health status data structure
+ *
+ * @interface ServiceStatus
+ */
 interface ServiceStatus {
+  /** Service name to display */
   name: string;
+  /** Whether service is currently healthy */
   isHealthy: boolean;
 }
 
+/**
+ * Props for the AppFooter component
+ *
+ * @interface AppFooterProps
+ */
 interface AppFooterProps {
+  /** Array of services with health status (defaults to 4 services if not provided) */
   services?: ServiceStatus[];
+  /** Optional callback fired when Details link is clicked */
   onDetailsClick?: () => void;
 }
 

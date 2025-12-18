@@ -1,6 +1,50 @@
+/**
+ * DashboardPage Component
+ *
+ * Main dashboard page with tabbed interface for My Tickets and Copilot AI assistant.
+ * Provides comprehensive ticket management with search, sort, and AI-powered diagnostics.
+ *
+ * Features:
+ * - Dual-tab interface: My Tickets (real data) + Copilot (AI chat with stubbed demo data)
+ * - Master-detail layout: ticket list on left, details on right
+ * - Auto-select first ticket on load if no ticket ID in URL
+ * - Unified search with type selector (User/Device/Ticket)
+ * - Sort by ticket number or priority
+ * - Real-time ticket filtering and search
+ * - AI Copilot chat interface with ticket context
+ * - Responsive mobile design with back navigation
+ * - User menu with logout functionality
+ * - System health status bar
+ *
+ * URL Structure:
+ * - /home - Dashboard with first ticket auto-selected
+ * - /home/:id - Dashboard with specific ticket displayed
+ *
+ * Tabs:
+ * 1. My Tickets Tab:
+ *    - Real-time ticket data from TicketsContext
+ *    - Search within tickets
+ *    - Sort by number or priority
+ *    - Click ticket to view details on right
+ *
+ * 2. Copilot Tab:
+ *    - AI chat interface for diagnostics
+ *    - Stubbed ticket data for demo (uses StubbedTicketDetailsView)
+ *    - Interactive ticket recommendations
+ *    - Send messages for AI assistance
+ *
+ * State Management:
+ * - Uses TicketsContext for global ticket state
+ * - Local state for UI interactions (search, sort, user menu)
+ * - URL sync for selected ticket ID
+ *
+ * @example
+ * // Used as route in App.tsx:
+ * <Route path="/home" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+ * <Route path="/home/:id" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+ */
 import {
   ChevronDownIcon,
-  InfoIcon,
   LogOutIcon,
   SearchIcon,
   AlertCircle,
@@ -9,41 +53,44 @@ import {
   SendIcon,
   Leaf,
 } from "lucide-react";
-import { TicketsList, TicketDetailsPanel } from "../components/tickets";
+import { TicketsList, TicketDetailsPanel } from "@components/tickets";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
-import { useTickets } from "../context";
-import { SystemStatusBar } from "../components/SystemStatusBar";
-import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import { Button } from "../components/ui/button";
+import { useAuth } from "@hooks/useAuth";
+import { useTickets } from "@context/TicketsContext";
+import { ROUTES, getTicketRoute, DEMO_CREDENTIALS } from "@constants";
+import { SystemStatusBar } from "@components/SystemStatusBar";
+import { Avatar, AvatarFallback } from "@ui/avatar";
+import { Button } from "@ui/button";
 import {
   CockpitEmptyStateIcon,
   CopilotIcon,
   FSCockpitLogoIcon,
   MyTicketsIcon,
-} from "../components/icons";
+} from "@components/icons";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../components/ui/card";
-import { Input } from "../components/ui/input";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../components/ui/tabs";
+} from "@ui/card";
+import { Input } from "@ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/tabs";
 
+/**
+ * DashboardPage Component
+ *
+ * Renders the main dashboard with ticket management and AI Copilot.
+ *
+ * @returns {JSX.Element} Dashboard page with tabbed interface
+ */
 export const DashboardPage = (): JSX.Element => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const { user, logout } = useAuth();
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [_searchQuery, _setSearchQuery] = useState("");
   const [myTicketsSearchQuery, setMyTicketsSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"ticket" | "priority">("ticket");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -62,10 +109,10 @@ export const DashboardPage = (): JSX.Element => {
   } = useTickets();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [searchType, setSearchType] = useState<"User" | "Device" | "Ticket">(
+  const [_searchType, _setSearchType] = useState<"User" | "Device" | "Ticket">(
     "Ticket"
   );
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [_showSearchDropdown, _setShowSearchDropdown] = useState(false);
   const [copilotMessage, setCopilotMessage] = useState("");
   const [copilotMessages, setCopilotMessages] = useState<
     Array<{
@@ -86,6 +133,7 @@ export const DashboardPage = (): JSX.Element => {
 
   // Update selected ticket when URL parameter changes
   useEffect(() => {
+    // Sync URL parameter to state
     if (id) {
       setSelectedTicketId(id);
     } else {
@@ -93,21 +141,22 @@ export const DashboardPage = (): JSX.Element => {
     }
   }, [id, setSelectedTicketId]);
 
-  const handleSearch = useCallback(async () => {
-    if (searchQuery.trim()) {
-      try {
-        await searchTickets(searchQuery, searchType);
-      } catch (error) {
-        console.error("Search failed:", error);
-      }
-    } else {
-      clearSearchResults();
-    }
-  }, [searchQuery, searchType, searchTickets, clearSearchResults]);
+  // Search functionality preserved for future use
+  // const _handleSearch = useCallback(async () => {
+  //   if (_searchQuery.trim()) {
+  //     try {
+  //       await searchTickets(_searchQuery, _searchType);
+  //     } catch (error) {
+  //       // Silently handle search errors
+  //     }
+  //   } else {
+  //     clearSearchResults();
+  //   }
+  // }, [_searchQuery, _searchType, searchTickets, clearSearchResults]);
 
   const handleTicketClick = useCallback(
     (ticketId: string) => {
-      // Navigate to /home/:id to show ticket details on the right side
+      // Navigate to /home/:id to show ticket details
       navigate(`/home/${ticketId}`);
     },
     [navigate]
@@ -151,10 +200,14 @@ export const DashboardPage = (): JSX.Element => {
   }, [myTickets, myTicketsSearchQuery, sortBy]);
 
   // Auto-select first ticket from sorted list when tickets are loaded and no ticket is selected
+  // Skip auto-select on mobile to show ticket list first
   useEffect(() => {
-    if (!id && filteredAndSortedTickets.length > 0 && !isLoading) {
+    const isMobile = window.innerWidth < 768;
+
+    // Only auto-select on desktop (not mobile)
+    if (!isMobile && !id && filteredAndSortedTickets.length > 0 && !isLoading) {
       const firstTicketId = filteredAndSortedTickets[0].id;
-      navigate(`/home/${firstTicketId}`, { replace: true });
+      navigate(getTicketRoute(firstTicketId), { replace: true });
     }
   }, [id, filteredAndSortedTickets, isLoading, navigate]);
 
@@ -196,14 +249,14 @@ export const DashboardPage = (): JSX.Element => {
               content: (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-[#070f26]">
+                    <p className="text-sm text-gray-900">
                       Here are your tickets. Click on any ticket to view
                       details:
                     </p>
                     <div className="flex items-center gap-0.5">
-                      <Leaf className="w-3.5 h-3.5 text-[#00a63e] fill-[#00a63e]" />
-                      <Leaf className="w-3.5 h-3.5 text-[#00a63e] fill-[#00a63e]" />
-                      <Leaf className="w-3.5 h-3.5 text-[#00a63e] fill-[#00a63e]" />
+                      <Leaf className="w-3.5 h-3.5 text-status-success fill-status-success" />
+                      <Leaf className="w-3.5 h-3.5 text-status-success fill-status-success" />
+                      <Leaf className="w-3.5 h-3.5 text-status-success fill-status-success" />
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -211,10 +264,10 @@ export const DashboardPage = (): JSX.Element => {
                       <div
                         key={ticket.id}
                         onClick={() => handleCopilotTicketClick(ticket.id)}
-                        className="p-3 bg-white border border-[#e1e8f0] rounded-lg hover:bg-[#f8fafc] cursor-pointer transition-colors"
+                        className="p-3 bg-white border border-border rounded-lg hover:bg-surface-gray-light cursor-pointer transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <span className="font-medium text-sm text-[#155cfb]">
+                          <span className="font-medium text-sm text-brand-primary">
                             {ticket.id}
                           </span>
                           <div className="flex gap-1.5">
@@ -234,10 +287,10 @@ export const DashboardPage = (): JSX.Element => {
                             )}
                           </div>
                         </div>
-                        <p className="text-xs text-[#5876ab] line-clamp-2">
+                        <p className="text-xs text-blue-600 line-clamp-2">
                           {ticket.title}
                         </p>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-[#90a1b8]">
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                           {ticket.device && (
                             <span className="flex items-center gap-1">
                               <svg
@@ -432,25 +485,38 @@ export const DashboardPage = (): JSX.Element => {
   };
 
   return (
-    <section className="relative w-full h-screen flex flex-col bg-[#F8F9FB]">
-      <header className="flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8 pt-3 sm:pt-4 pb-0 h-[60px] sm:h-[66px] md:h-[73px] bg-[#ffffffcc] border-b-[0.67px] border-[#e1e8f0] flex-shrink-0">
+    <section className="relative w-full h-screen flex flex-col bg-surface-gray">
+      {/* Mobile Back Button - Shows when ticket is selected on mobile */}
+      {selectedTicketId && (
+        <button
+          onClick={() => {
+            navigate(ROUTES.HOME);
+          }}
+          className="md:hidden fixed top-3 left-3 z-[60] bg-white shadow-lg rounded-full p-2.5 hover:bg-gray-50 transition-colors border border-gray-200"
+          aria-label="Back to ticket list"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700" />
+        </button>
+      )}
+
+      <header className="flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8 pt-3 sm:pt-4 pb-0 h-12 sm:h-14 md:h-16 lg:h-[73px] bg-surface-white-80 border-b-[0.67px] border-border flex-shrink-0">
         <div className="flex items-start gap-1.5 sm:gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:0ms]">
           <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 flex items-center justify-center">
             <FSCockpitLogoIcon />
           </div>
           <div className="hidden sm:flex flex-col justify-between py-0.5">
-            <h1 className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-xs sm:text-sm md:text-base leading-4 sm:leading-5 md:leading-6">
+            <h1 className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-primary text-xs sm:text-sm md:text-base leading-4 sm:leading-5 md:leading-6">
               FS Cockpit
             </h1>
-            <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-[10px] sm:text-xs leading-3 sm:leading-4">
+            <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-secondary text-[10px] sm:text-xs leading-3 sm:leading-4">
               Diagnostics Platform
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:200ms]">
-          <span className="hidden lg:inline [font-family:'Arial-Regular',Helvetica] font-normal text-[#45556c] text-xs leading-4 truncate max-w-[200px]">
-            {user?.email || user?.username || "testadmin@ntt.com"}
+          <span className="hidden lg:inline [font-family:'Arial-Regular',Helvetica] font-normal text-text-tertiary text-xs leading-4 truncate max-w-[200px]">
+            {user?.email || user?.username || DEMO_CREDENTIALS.EMAIL}
           </span>
 
           <button
@@ -477,13 +543,13 @@ export const DashboardPage = (): JSX.Element => {
               aria-hidden="true"
               onClick={() => setShowUserMenu(false)}
             />
-            <div className="fixed top-[60px] sm:top-[66px] md:top-[73px] right-3 sm:right-4 md:right-6 lg:right-8 w-44 sm:w-48 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-2 z-50">
-              <div className="px-3 sm:px-4 py-2 border-b border-[#e1e8f0]">
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-xs sm:text-sm truncate">
-                  {user?.name || "Test Admin"}
+            <div className="fixed top-[60px] sm:top-[66px] md:top-[73px] right-3 sm:right-4 md:right-6 lg:right-8 w-44 sm:w-48 bg-white rounded-lg shadow-lg border border-border py-2 z-50">
+              <div className="px-3 sm:px-4 py-2 border-b border-border">
+                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-primary text-xs sm:text-sm truncate">
+                  {user?.name || DEMO_CREDENTIALS.NAME}
                 </p>
-                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-[10px] sm:text-xs truncate">
-                  {user?.email || user?.username || "testadmin@ntt.com"}
+                <p className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-secondary text-[10px] sm:text-xs truncate">
+                  {user?.email || user?.username || DEMO_CREDENTIALS.EMAIL}
                 </p>
               </div>
               <button
@@ -494,15 +560,15 @@ export const DashboardPage = (): JSX.Element => {
                   try {
                     await logout();
                   } catch (error) {
-                    console.error("Logout error:", error);
+                    // Silently handle logout errors
                   } finally {
-                    navigate("/login");
+                    navigate(ROUTES.LOGIN);
                   }
                 }}
-                className="w-full px-3 sm:px-4 py-2 text-left hover:bg-[#F8F9FB] transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
+                className="w-full px-3 sm:px-4 py-2 text-left hover:bg-surface-gray transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
               >
-                <LogOutIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#61738d]" />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-xs sm:text-sm">
+                <LogOutIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-text-secondary" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-primary text-xs sm:text-sm">
                   Sign Out
                 </span>
               </button>
@@ -511,34 +577,34 @@ export const DashboardPage = (): JSX.Element => {
         )}
       </header>
 
-      <div className="flex flex-1 bg-[#F8F9FB] overflow-hidden">
+      <div className="flex flex-1 bg-surface-gray overflow-hidden">
         {/* Show sidebar on desktop, hide on mobile when ticket is selected */}
         <aside
           className={`${
             selectedTicketId ? "hidden md:flex" : "flex"
-          } w-full sm:w-full md:w-80 lg:w-[360px] xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-[#e1e8f0] flex-col`}
+          } w-full md:w-80 lg:w-[360px] xl:w-[420px] 2xl:w-[480px] bg-white border-r-[0.67px] border-border flex-col`}
         >
           <Tabs
             defaultValue={activeTab || "unified-search"}
             onValueChange={setActiveTab}
             className="w-full flex flex-col flex-1 overflow-hidden"
           >
-            <TabsList className="w-full h-[47px] rounded-none bg-white border-b-[0.67px] border-[#e1e8f0] p-0 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:400ms]">
+            <TabsList className="w-full h-[47px] rounded-none bg-white border-b-[0.67px] border-border p-0 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:400ms]">
               <TabsTrigger
                 value="unified-search"
-                className="flex-1 h-full rounded-none data-[state=active]:bg-[#eff6ff] data-[state=active]:border-2 data-[state=active]:border-[#155cfb] data-[state=active]:text-[#1347e5] gap-3.5 transition-colors"
+                className="flex-1 h-full rounded-none data-[state=active]:bg-brand-primary-light data-[state=active]:border-2 data-[state=active]:border-brand-primary data-[state=active]:text-brand-accent gap-1.5 sm:gap-2 md:gap-3.5 transition-colors px-2 sm:px-3"
               >
-                <SearchIcon className="w-4 h-4" />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-sm leading-5">
-                  Unified Search
+                <SearchIcon className="w-4 h-4 flex-shrink-0" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-xs sm:text-sm leading-4 sm:leading-5 truncate">
+                  <span className="hidden sm:inline">Unified </span>Search
                 </span>
               </TabsTrigger>
               <TabsTrigger
                 value="copilot"
-                className="flex-1 h-full rounded-none data-[state=active]:bg-[#eff6ff] data-[state=active]:border-2 data-[state=active]:border-[#155cfb] data-[state=active]:text-[#1347e5] gap-3.5 transition-colors"
+                className="flex-1 h-full rounded-none data-[state=active]:bg-brand-primary-light data-[state=active]:border-2 data-[state=active]:border-brand-primary data-[state=active]:text-brand-accent gap-1.5 sm:gap-2 md:gap-3.5 transition-colors px-2 sm:px-3"
               >
-                <CopilotIcon />
-                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-neutral-950 text-sm leading-5">
+                <CopilotIcon className="flex-shrink-0" />
+                <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-neutral-950 text-xs sm:text-sm leading-4 sm:leading-5 truncate">
                   Copilot
                 </span>
               </TabsTrigger>
@@ -549,9 +615,9 @@ export const DashboardPage = (): JSX.Element => {
               className="mt-0 p-0 flex-1 overflow-y-auto"
             >
               <div className="p-2 sm:p-3 md:p-4 lg:p-4 translate-y-[-1rem] animate-fade-in opacity-0 [--animation-delay:600ms]">
-                <Card className="border-[0.67px] border-[#e1e8f0] shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
+                <Card className="border-[0.67px] border-border shadow-[0px_4px_6px_-4px_#0000001a,0px_10px_15px_-3px_#0000001a] rounded-[14px]">
                   <CardHeader
-                    className={`h-[65px] py-3 px-4 border-b-[0.67px] border-[#e1e8f0] flex flex-col gap-0.5 justify-between ${
+                    className={`h-[65px] py-3 px-4 border-b-[0.67px] border-border flex flex-col gap-0.5 justify-between ${
                       isSearching || searchResults.length > 0
                         ? "bg-[linear-gradient(90deg,rgba(239,246,255,1)_0%,rgba(219,234,254,1)_100%)]"
                         : "bg-[linear-gradient(90deg,rgba(248,250,252,1)_0%,rgba(239,246,255,1)_100%)]"
@@ -569,20 +635,20 @@ export const DashboardPage = (): JSX.Element => {
                           <button
                             onClick={() => {
                               clearSearchResults();
-                              navigate("/home");
+                              navigate(ROUTES.HOME);
                             }}
-                            className="text-xs text-[#155cfb] hover:underline font-sans"
+                            className="text-xs text-brand-primary hover:underline font-sans"
                           >
                             Clear
                           </button>
                         </div>
                         {isSearching ? (
-                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4 flex items-center gap-1">
+                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-secondary text-xs leading-4 flex items-center gap-1">
                             <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
                             Searching...
                           </CardDescription>
                         ) : (
-                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#61738d] text-xs leading-4">
+                          <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-secondary text-xs leading-4">
                             {searchResults.length} result
                             {searchResults.length !== 1 ? "s" : ""} found
                           </CardDescription>
@@ -593,7 +659,7 @@ export const DashboardPage = (): JSX.Element => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <MyTicketsIcon />
-                            <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-[#0e162b] text-sm leading-5">
+                            <CardTitle className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-primary text-sm leading-5">
                               My Tickets
                             </CardTitle>
                           </div>
@@ -602,7 +668,7 @@ export const DashboardPage = (): JSX.Element => {
                               onClick={() =>
                                 setShowSortDropdown(!showSortDropdown)
                               }
-                              className="text-xs text-[#3B82F6] hover:underline font-sans flex items-center gap-1"
+                              className="text-xs text-brand-secondary hover:underline font-sans flex items-center gap-1"
                             >
                               Sort:{" "}
                               {sortBy === "ticket" ? "Ticket #" : "Priority"}
@@ -860,8 +926,10 @@ export const DashboardPage = (): JSX.Element => {
 
         <main
           className={`${
-            selectedTicketId ? "flex" : "hidden md:flex"
-          } flex-1 bg-[#F8F9FB] min-h-[400px] sm:min-h-[500px] md:min-h-[552px] overflow-y-auto`}
+            selectedTicketId ? "flex" : "hidden"
+          } md:flex flex-1 bg-[#F8F9FB] min-h-[400px] sm:min-h-[500px] md:min-h-[552px] overflow-y-auto ${
+            selectedTicketId ? "pt-14 md:pt-0" : ""
+          }`}
         >
           {activeTab === "copilot" ? (
             copilotSelectedTicketId ? (
@@ -940,7 +1008,8 @@ export const DashboardPage = (): JSX.Element => {
                       </div>
                       <Button
                         onClick={() => {
-                          navigate("/home");
+                          setSelectedTicketId(null);
+                          navigate(ROUTES.HOME);
                           window.location.reload();
                         }}
                         className="h-auto px-6 py-3 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2"
@@ -972,7 +1041,9 @@ export const DashboardPage = (): JSX.Element => {
                       </p>
                     </div>
                     <Button
-                      onClick={() => navigate("/home")}
+                      onClick={() => {
+                        navigate(ROUTES.HOME);
+                      }}
                       className="h-auto px-6 py-3 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2"
                     >
                       <ArrowLeft className="w-4 h-4" />

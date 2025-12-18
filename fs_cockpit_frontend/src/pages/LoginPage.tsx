@@ -1,17 +1,55 @@
+/**
+ * @fileoverview Login Page Component
+ *
+ * Enterprise authentication page for FS Cockpit platform using Azure AD B2C.
+ * Provides secure Microsoft authentication with popup-based MSAL flow.
+ *
+ * Features:
+ * - Azure AD B2C authentication via MSAL popup
+ * - Automatic redirect if already authenticated
+ * - Enhanced error handling for popup blockers
+ * - Token storage in localStorage (ID token + access token)
+ * - User-friendly authentication state management
+ * - Responsive gradient design with feature highlights
+ * - Security disclaimer and terms of service
+ *
+ * Authentication Flow:
+ * 1. Check existing auth state (MSAL accounts + localStorage tokens)
+ * 2. Auto-redirect authenticated users to intended destination
+ * 3. On sign-in click: Launch MSAL popup synchronously (prevents popup blocking)
+ * 4. Store both ID token and access token on success
+ * 5. Dispatch loginComplete event for app-wide auth updates
+ * 6. Navigate to intended page (from location state or /home)
+ *
+ * Error Handling:
+ * - Popup blocked: Instructs user to allow popups
+ * - User cancelled: Friendly cancellation message
+ * - Other errors: Detailed error display with retry option
+ *
+ * @component
+ * @example
+ * // Used as route in App.tsx:
+ * <Route path="/login" element={<LoginPage />} />
+ */
+
 import { useMsal } from "@azure/msal-react";
 import { ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { popupLoginRequest } from "../config/msalConfig";
-import { Alert, AlertDescription } from "../components/ui/alert";
-import { Button } from "../components/ui/button";
-import { Card, CardContent } from "../components/ui/card";
+import { popupLoginRequest } from "@config/msalConfig";
+import { Alert, AlertDescription } from "@ui/alert";
+import { Button } from "@ui/button";
+import { Card, CardContent } from "@ui/card";
 import {
   IntelligentDiagnosticsIcon,
   RealTimeIcon,
   UnifiedITIcon,
-} from "../components/icons";
+} from "@components/icons";
 
+/**
+ * Platform features displayed on login page
+ * Each feature includes an icon component and descriptive text
+ */
 const features = [
   {
     icon: IntelligentDiagnosticsIcon,
@@ -27,6 +65,27 @@ const features = [
   },
 ];
 
+/**
+ * LoginPage Component
+ *
+ * Renders the authentication page with Azure AD B2C integration.
+ *
+ * State Management:
+ * - isLoading: Tracks authentication process status
+ * - error: Stores authentication error messages
+ * - isRedirecting: Prevents duplicate redirects during navigation
+ *
+ * Hooks Used:
+ * - useMsal: Access MSAL instance and accounts for authentication
+ * - useNavigate: Programmatic navigation after successful login
+ * - useLocation: Retrieve intended destination from route state
+ *
+ * @returns {JSX.Element} Login page with authentication UI
+ *
+ * @example
+ * // Automatically used by router:
+ * <Route path="/login" element={<LoginPage />} />
+ */
 export const LoginPage = (): JSX.Element => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,9 +95,22 @@ export const LoginPage = (): JSX.Element => {
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Get the intended destination from location state
-  const from = (location.state as any)?.from || "/home";
+  // On mobile, always go to /home (ticket list) instead of /home/:id
+  const isMobile = window.innerWidth < 768;
+  const requestedPath = (location.state as any)?.from || "/home";
+  const from =
+    isMobile && requestedPath.startsWith("/home/") ? "/home" : requestedPath;
 
-  // Redirect to home if user is already authenticated
+  /**
+   * Auto-redirect effect for already authenticated users
+   *
+   * Checks both MSAL accounts and localStorage for existing authentication.
+   * If authenticated, immediately redirects to intended destination.
+   *
+   * Guards against:
+   * - Duplicate redirects (isRedirecting flag)
+   * - Interrupting active login flows (isLoading flag)
+   */
   useEffect(() => {
     // Don't check if already redirecting or loading
     if (isRedirecting || isLoading) return;
@@ -52,6 +124,38 @@ export const LoginPage = (): JSX.Element => {
       navigate(from, { replace: true });
     }
   }, [accounts, navigate, isRedirecting, isLoading, from]);
+
+  /**
+   * Handle Azure AD B2C authentication via MSAL popup
+   *
+   * CRITICAL: This function MUST NOT be async. Making it async will cause
+   * the popup to be blocked by browsers since it's not in the direct
+   * call stack of the user click event.
+   *
+   * Authentication Flow:
+   * 1. Set loading state and clear errors
+   * 2. Call loginPopup synchronously with popupLoginRequest config
+   * 3. On success:
+   *    - Store both access token and ID token in localStorage
+   *    - Store full account data including idTokenClaims
+   *    - Set active account in MSAL instance
+   *    - Store login timestamp for debugging 401 errors
+   *    - Dispatch loginComplete event for app components
+   *    - Navigate to intended destination
+   * 4. On error:
+   *    - Detect popup blocked errors and show user-friendly message
+   *    - Detect user cancellation and show cancellation message
+   *    - Show generic error message for other failures
+   *
+   * Error Types:
+   * - popup_window_error: Popup was blocked by browser
+   * - user_cancelled: User closed the popup or cancelled auth
+   * - Other: Network errors, auth failures, etc.
+   *
+   * @example
+   * // Called by sign-in button click:
+   * <Button onClick={handleSignIn} disabled={isLoading}>Sign in</Button>
+   */
   const handleSignIn = () => {
     // DO NOT use async here - it breaks popup flow
     setIsLoading(true);
@@ -106,13 +210,6 @@ export const LoginPage = (): JSX.Element => {
         }, 100);
       })
       .catch((err: any) => {
-        console.error("Login popup failed:", err);
-        console.error("Error details:", {
-          errorCode: err?.errorCode,
-          errorMessage: err?.errorMessage,
-          message: err?.message,
-        });
-
         // Check if popup was blocked
         if (
           err?.errorCode === "popup_window_error" ||
@@ -223,7 +320,7 @@ export const LoginPage = (): JSX.Element => {
                 FS Cockpit
               </h1>
 
-              <p className="font-['Arial'] font-normal text-[#BEDBFF] text-[18px] tracking-[0] leading-[28px] mt-[15px]">
+              <p className="font-['Arial'] font-normal text-blue-200 text-[18px] tracking-[0] leading-[28px] mt-[15px]">
                 Unified Diagnostics Platform for IT Excellence
               </p>
             </div>
@@ -246,10 +343,10 @@ export const LoginPage = (): JSX.Element => {
           <Card className="bg-white rounded-xl md:rounded-2xl shadow-[0px_25px_50px_-12px_#00000040] border-0">
             <CardContent className="flex flex-col gap-4 md:gap-6 p-6 md:p-8">
               <header className="flex flex-col gap-1">
-                <h2 className="font-['Arial'] font-normal text-[#1A1A1A] text-base tracking-[0] leading-6">
+                <h2 className="font-['Arial'] font-normal text-gray-900 text-base tracking-[0] leading-6">
                   Welcome Back
                 </h2>
-                <p className="font-['Arial'] font-normal text-[#6B7280] text-sm tracking-[0] leading-5">
+                <p className="font-['Arial'] font-normal text-gray-500 text-sm tracking-[0] leading-5">
                   Sign in to access your diagnostic workspace
                 </p>
               </header>
@@ -266,7 +363,7 @@ export const LoginPage = (): JSX.Element => {
                 type="button"
                 onClick={handleSignIn}
                 disabled={isLoading}
-                className="h-12 md:h-14 bg-[#4361EE] hover:bg-[#3451DD] rounded-lg justify-start gap-2 md:gap-3 px-3 transition-colors disabled:opacity-50"
+                className="h-12 md:h-14 bg-brand-primary hover:bg-brand-primary-hover rounded-lg justify-start gap-2 md:gap-3 px-3 transition-colors disabled:opacity-50"
               >
                 <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
                   <svg
@@ -299,7 +396,7 @@ export const LoginPage = (): JSX.Element => {
                 <ChevronRight className="w-4 h-4 text-white" />
               </Button>
 
-              <Alert className="bg-[#EFF6FF] border-[#DBEAFE] rounded-[10px]">
+              <Alert className="bg-blue-50 border-blue-200 rounded-[10px]">
                 <svg
                   className="w-5 h-5"
                   viewBox="0 0 20 20"
@@ -315,10 +412,10 @@ export const LoginPage = (): JSX.Element => {
                   />
                 </svg>
                 <AlertDescription className="flex flex-col gap-1 ml-2">
-                  <span className="font-['Arial'] font-normal text-[#1C398E] text-sm tracking-[0] leading-5">
+                  <span className="font-['Arial'] font-normal text-blue-800 text-sm tracking-[0] leading-5">
                     Secure Enterprise Access
                   </span>
-                  <span className="font-['Arial'] font-normal text-[#1447E6] text-xs tracking-[0] leading-4">
+                  <span className="font-['Arial'] font-normal text-blue-700 text-xs tracking-[0] leading-4">
                     Authentication is handled through your organization's
                     Microsoft Active Directory. Your credentials are never
                     stored by FS Cockpit.
@@ -326,7 +423,7 @@ export const LoginPage = (): JSX.Element => {
                 </AlertDescription>
               </Alert>
 
-              <p className="font-['Arial'] font-normal text-[#90A1B9] text-xs text-center tracking-[0] leading-4">
+              <p className="font-['Arial'] font-normal text-gray-400 text-xs text-center tracking-[0] leading-4">
                 By signing in, you agree to our Terms of Service and Privacy
                 Policy
               </p>

@@ -1,7 +1,41 @@
+/**
+ * @fileoverview MSAL Authentication Configuration
+ *
+ * Configuration for Microsoft Authentication Library (MSAL) with Azure AD B2C.
+ * Defines authentication settings, cache policies, and token request scopes.
+ *
+ * Authentication Flow: Popup-based (not redirect)
+ * Identity Provider: Azure AD B2C
+ * Token Storage: sessionStorage (auto-cleared on tab close)
+ *
+ * @module config/msalConfig
+ * @requires @azure/msal-browser - MSAL browser library
+ */
+
 import { Configuration, LogLevel } from "@azure/msal-browser";
 
 /**
- * Configuration object to be passed to MSAL instance on creation.
+ * MSAL Configuration Object
+ *
+ * Complete configuration for MSAL PublicClientApplication instance.
+ * Configures Azure AD B2C authentication, caching, and logging.
+ *
+ * @constant {Configuration}
+ * @property {Object} auth - Authentication configuration
+ * @property {string} auth.clientId - Azure AD B2C application client ID
+ * @property {string} auth.authority - Azure AD B2C tenant authority URL
+ * @property {string} auth.redirectUri - OAuth redirect URI (dynamic based on environment)
+ * @property {string} auth.postLogoutRedirectUri - Post-logout redirect URI
+ * @property {string[]} auth.knownAuthorities - Trusted B2C login domains
+ * @property {boolean} auth.navigateToLoginRequestUrl - Prevents auto-redirect after auth
+ *
+ * @property {Object} cache - Token caching configuration
+ * @property {string} cache.cacheLocation - sessionStorage (cleared on tab close)
+ * @property {boolean} cache.storeAuthStateInCookie - Fallback for IE11/Edge legacy
+ *
+ * @property {Object} system - System and logging configuration
+ * @property {boolean} system.asyncPopups - Enables immediate popup (prevents blocking)
+ * @property {Object} system.loggerOptions - MSAL logging configuration
  */
 export const msalConfig: Configuration = {
   auth: {
@@ -57,7 +91,17 @@ export const msalConfig: Configuration = {
 };
 
 /**
- * Scopes for login request
+ * Login Request Scopes
+ *
+ * Defines the OAuth 2.0 scopes requested during user authentication.
+ * These scopes determine what user information is accessible.
+ *
+ * @constant {Object}
+ * @property {string[]} scopes - Requested OAuth scopes
+ *   - openid: User identifier
+ *   - profile: Basic profile information (name, etc.)
+ *   - email: User email address
+ * @property {string} prompt - Forces account selection UI even if user is signed in
  */
 export const loginRequest = {
   scopes: ["openid", "profile", "email"],
@@ -65,7 +109,14 @@ export const loginRequest = {
 };
 
 /**
- * Login request specifically for popup flow
+ * Popup Login Request Scopes
+ *
+ * Identical to loginRequest but explicitly named for popup-based authentication flows.
+ * Used when calling acquireTokenPopup() method.
+ *
+ * @constant {Object}
+ * @property {string[]} scopes - Requested OAuth scopes (openid, profile, email)
+ * @property {string} prompt - Forces account selection during popup login
  */
 export const popupLoginRequest = {
   scopes: ["openid", "profile", "email"],
@@ -73,7 +124,13 @@ export const popupLoginRequest = {
 };
 
 /**
- * Scopes for API token request
+ * API Access Token Request Scopes
+ *
+ * Scopes requested when acquiring access tokens for backend API calls.
+ * Used with acquireTokenSilent() for token refresh.
+ *
+ * @constant {Object}
+ * @property {string[]} scopes - Required OAuth scopes for API authentication
  */
 export const apiRequest = {
   scopes: ["openid", "profile", "email"],

@@ -1,15 +1,53 @@
+/**
+ * TicketHeader Component
+ *
+ * Displays ticket header information with metadata grid.
+ * Shows ticket number badge, title, and key details in a responsive grid layout.
+ *
+ * Features:
+ * - Ticket number badge with icon
+ * - Title display
+ * - Responsive info grid (1 column mobile, 2-4 columns desktop)
+ * - Color-coded status and priority badges
+ * - Metadata: user, device, status, created date, assigned to, type
+ *
+ * @example
+ * <TicketHeader
+ *   ticketNumber="INC0012345"
+ *   title="Laptop not connecting to WiFi"
+ *   userDisplayName="John Doe"
+ *   deviceName="LAPTOP-ABC123"
+ *   status="In Progress"
+ *   createdDate="2025-12-18"
+ *   assignedTo="Jane Smith"
+ *   type="Network"
+ * />
+ */
 import React from "react";
-import { Badge } from "../../components/ui/badge";
+import { Badge } from "@ui/badge";
 import { TicketIcon } from "lucide-react";
 
+/**
+ * Props for the TicketHeader component
+ *
+ * @interface TicketHeaderProps
+ */
 interface TicketHeaderProps {
+  /** Ticket identifier (e.g., INC0012345) */
   ticketNumber: string;
+  /** Ticket title/short description */
   title: string;
+  /** User's display name who opened ticket */
   userDisplayName: string;
+  /** Associated device name */
   deviceName: string;
+  /** Current ticket status */
   status: string;
+  /** Ticket creation date */
   createdDate: string;
+  /** Technician assigned to ticket */
   assignedTo: string;
+  /** Ticket category/type */
   type: string;
 }
 
@@ -23,6 +61,11 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
   assignedTo,
   type,
 }) => {
+  /**
+   * Get status badge color classes
+   * @param {string} status - Ticket status
+   * @returns {string} Tailwind CSS classes
+   */
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
     if (statusLower.includes("progress"))
@@ -34,6 +77,11 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     return "bg-gray-100 text-gray-700 border-gray-300";
   };
 
+  /**
+   * Get priority badge color classes
+   * @param {string} priority - Priority level
+   * @returns {string} Tailwind CSS classes
+   */
   const getPriorityColor = (priority: string) => {
     const priorityLower = priority.toLowerCase();
     if (priorityLower === "high")

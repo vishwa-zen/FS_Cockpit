@@ -1,8 +1,66 @@
+/**
+ * @fileoverview TicketsList Component
+ *
+ * Displays a scrollable list of incident tickets with summary information.
+ * Optimized with React.memo for performance when rendering large ticket lists.
+ *
+ * Features:
+ * - Compact card layout with ticket ID, title, status, priority
+ * - Device name display with icon
+ * - Relative time display (e.g., "2 hours ago")
+ * - Visual selection highlighting with blue background
+ * - Hover effects for better UX
+ * - Responsive text sizing for mobile/desktop
+ * - Badge color coding for status and priority
+ * - Accessible ARIA attributes for screen readers
+ * - Text truncation for long titles with title tooltip
+ *
+ * Layout:
+ * - Left side: Ticket ID (blue link), status badge, title, device info
+ * - Right side: Time ago, priority badge
+ * - Selected state: Blue background (#EFF6FF) with blue border (#3B82F6)
+ * - Hover state: Light gray background (#F8F9FB)
+ *
+ * Performance:
+ * - Memoized with React.memo to prevent unnecessary re-renders
+ * - Only re-renders when tickets array, selectedTicketId, or onTicketClick changes
+ *
+ * @component
+ * @example
+ * // Basic usage in search results:
+ * <TicketsList
+ *   tickets={searchResults}
+ *   selectedTicketId={selectedId}
+ *   onTicketClick={(id) => navigate(\`/home/\${id}\`)}
+ * />
+ *
+ * @example
+ * // With filtered/sorted tickets:
+ * <TicketsList
+ *   tickets={filteredAndSortedTickets}
+ *   selectedTicketId={params.id}
+ *   onTicketClick={handleTicketClick}
+ * />
+ */
+
 import React from "react";
 import { MonitorIcon, ClockIcon } from "lucide-react";
-import { Badge } from "../../components/ui/badge";
-import { formatPriority, formatStatus } from "../../lib/utils";
+import { Badge } from "@ui/badge";
+import { formatPriority, formatStatus } from "@lib/utils";
 
+/**
+ * Ticket data structure for list display
+ *
+ * @interface Ticket
+ * @property {string} id - Ticket identifier (e.g., INC0012345)
+ * @property {string} status - Current status (New, In Progress, Resolved, etc.)
+ * @property {string} [statusColor] - Tailwind CSS classes for status badge
+ * @property {string} title - Short description of the issue
+ * @property {string} [time] - Relative time string (e.g., \"2 hours ago\")
+ * @property {string} [device] - Associated device name
+ * @property {string} [priority] - Priority level (High, Medium, Low)
+ * @property {string} [priorityColor] - Tailwind CSS classes for priority badge
+ */
 interface Ticket {
   id: string;
   status: string;
@@ -14,13 +72,41 @@ interface Ticket {
   priorityColor?: string;
 }
 
+/**
+ * Props for TicketsList component
+ *
+ * @interface TicketsListProps
+ * @property {Ticket[]} tickets - Array of tickets to display
+ * @property {string | null} [selectedTicketId] - Currently selected ticket ID for highlighting
+ * @property {(ticketId: string) => void} onTicketClick - Callback when ticket is clicked
+ */
 export interface TicketsListProps {
   tickets: Ticket[];
   selectedTicketId?: string | null;
   onTicketClick: (ticketId: string) => void;
 }
 
-export const TicketsList = React.memo(
+/**
+ * TicketsList Component
+ *
+ * Renders a list of incident tickets with click handling and selection state.
+ * Memoized to prevent re-renders when parent component updates but ticket data hasn't changed.
+ *
+ * Accessibility:
+ * - role=\"list\" for semantic list structure
+ * - role=\"listitem\" for each ticket
+ * - tabIndex={0} for keyboard navigation
+ * - aria-selected for screen reader support
+ *
+ * Responsive Design:
+ * - Mobile (sm): Smaller fonts (text-xs), compact spacing (gap-1.5)
+ * - Desktop: Larger fonts (text-sm), standard spacing (gap-2)
+ * - Icons scale from 2.5h/w to 3h/w on larger screens
+ *
+ * @param {TicketsListProps} props - Component props
+ * @returns {JSX.Element} Rendered list of tickets
+ */
+const TicketsList = React.memo(
   ({ tickets, selectedTicketId, onTicketClick }: TicketsListProps) => {
     return (
       <div className="flex flex-col gap-1.5 sm:gap-2" role="list">
@@ -100,4 +186,4 @@ export const TicketsList = React.memo(
 
 TicketsList.displayName = "TicketsList";
 
-export default TicketsList;
+export { TicketsList };

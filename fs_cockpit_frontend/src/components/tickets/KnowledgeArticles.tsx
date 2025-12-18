@@ -1,16 +1,56 @@
+/**
+ * KnowledgeArticles Component
+ *
+ * Displays a list of knowledge base articles in card format.
+ * Shows title, confidence score badge, and description for each article.
+ *
+ * Features:
+ * - Card-based layout with hover effects
+ * - Color-coded confidence badges (green >=80%, orange >=70%, red <70%)
+ * - Loading state with spinner
+ * - Empty state message
+ * - Responsive design
+ *
+ * @example
+ * <KnowledgeArticles
+ *   items={[
+ *     {
+ *       title: "WiFi Troubleshooting Guide",
+ *       confidence: "85",
+ *       description: "Step-by-step guide to resolve WiFi connectivity issues"
+ *     }
+ *   ]}
+ *   isLoading={false}
+ * />
+ */
 import React from "react";
-import { Card, CardContent } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
+import { Card, CardContent } from "@ui/card";
+import { Badge } from "@ui/badge";
 import { LightbulbIcon } from "lucide-react";
 
+/**
+ * Knowledge article item structure
+ *
+ * @interface KnowledgeItem
+ */
 export interface KnowledgeItem {
+  /** Article title */
   title: string;
+  /** Confidence score percentage */
   confidence: string;
+  /** Article description/summary */
   description: string;
 }
 
+/**
+ * Props for the KnowledgeArticles component
+ *
+ * @interface KnowledgeArticlesProps
+ */
 interface KnowledgeArticlesProps {
+  /** Array of knowledge articles to display */
   items: KnowledgeItem[];
+  /** Whether articles are loading */
   isLoading?: boolean;
 }
 
@@ -18,6 +58,11 @@ export const KnowledgeArticles: React.FC<KnowledgeArticlesProps> = ({
   items,
   isLoading = false,
 }) => {
+  /**
+   * Get badge color based on confidence score
+   * @param {string} confidence - Confidence percentage
+   * @returns {string} Tailwind CSS classes
+   */
   const getConfidenceBadgeColor = (confidence: string) => {
     const value = parseInt(confidence);
     if (value >= 80) {

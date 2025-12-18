@@ -1,6 +1,58 @@
+/**
+ * DeviceUserDetailsPanel Component
+ *
+ * Displays comprehensive device and user information from Intune and Azure AD.
+ * Shows device compliance, health metrics, network details, and user profile data.
+ *
+ * Features:
+ * - Overall device health status calculation based on multiple factors
+ * - Color-coded compliance badges (green = compliant, red = non-compliant)
+ * - Comprehensive device metrics (memory, disk, device score)
+ * - Network connectivity information (IP, MAC, VPN status)
+ * - Hardware details (manufacturer, model, serial number)
+ * - User profile information (name, email, employee ID)
+ * - Responsive grid layouts
+ * - Health score algorithm considering compliance, resource usage, sync status, and connectivity
+ *
+ * Health Score Factors:
+ * - Compliance state: -40 points if non-compliant (critical)
+ * - Memory usage: -20 points if >90%, -10 points if >80%
+ * - Disk usage: -20 points if >90%, -10 points if >80%
+ * - Last sync: -15 points if >48 hours
+ * - Network: -15 points if no connection
+ * - Score >=80 = Healthy, 50-79 = Warning, <50 = Critical
+ *
+ * @example
+ * ```tsx
+ * <DeviceUserDetailsPanel
+ *   details={{
+ *     userName: "John Doe",
+ *     userId: "john.doe@company.com",
+ *     emailId: "john.doe@company.com",
+ *     employeeId: "EMP12345",
+ *     complianceState: "Compliant",
+ *     deviceName: "LAPTOP-ABC123",
+ *     deviceScore: "85/100",
+ *     memoryUsage: "65",
+ *     diskUsage: "72",
+ *     operatingSystem: "Windows 11 Pro",
+ *     osVersion: "22H2",
+ *     serialNumber: "SN123456789",
+ *     lastSyncDateTime: "2025-12-18T10:30:00Z",
+ *     managedDeviceOwnerType: "Company",
+ *     ipAddress: "192.168.1.100",
+ *     macAddress: "00:1A:2B:3C:4D:5E",
+ *     connectionType: "Ethernet",
+ *     vpnStatus: "Connected",
+ *     manufacturer: "Dell",
+ *     model: "Latitude 5520"
+ *   }}
+ * />
+ * ```
+ */
 import React from "react";
-import { Card } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
+import { Card } from "@ui/card";
+import { Badge } from "@ui/badge";
 import {
   Monitor,
   User,
@@ -20,51 +72,104 @@ import {
   Globe,
   ShieldCheck,
   Package,
-  HeartPulse,
   CheckCircle,
 } from "lucide-react";
 
+/**
+ * Device and user details data structure from Intune and Azure AD
+ *
+ * @interface DeviceUserDetails
+ */
 export interface DeviceUserDetails {
+  /** User's full display name */
   userName: string;
+  /** User's unique identifier (UPN or email) */
   userId: string;
+  /** User's email address */
   emailId: string;
+  /** Optional employee/staff ID number */
   employeeId?: string;
+  /** Device compliance status (Compliant, Non-Compliant, etc.) */
   complianceState: string;
+  /** Device hostname/computer name */
   deviceName: string;
+  /** Optional device health score (e.g., "85/100") */
   deviceScore?: string;
+  /** Memory usage percentage as string */
   memoryUsage?: string;
+  /** Disk usage percentage as string */
   diskUsage?: string;
+  /** Operating system name */
   operatingSystem: string;
+  /** OS version/build number */
   osVersion?: string;
+  /** Device serial number */
   serialNumber: string;
+  /** ISO timestamp of last successful sync with Intune */
   lastSyncDateTime: string;
+  /** Device ownership type (Company, Personal, etc.) */
   managedDeviceOwnerType: string;
+  /** Optional enrollment date ISO timestamp */
   enrolledDateTime?: string;
-  // Network Information
+  /** Device IP address */
   ipAddress?: string;
+  /** Device MAC address */
   macAddress?: string;
+  /** Network connection type (Ethernet, WiFi, etc.) */
   connectionType?: string;
+  /** VPN connection status */
   vpnStatus?: string;
-  // Device Information
+  /** Device manufacturer (Dell, HP, Lenovo, etc.) */
   manufacturer?: string;
+  /** Device model number/name */
   model?: string;
 }
 
+/**
+ * Props for the DeviceUserDetailsPanel component
+ *
+ * @interface DeviceUserDetailsPanelProps
+ */
 interface DeviceUserDetailsPanelProps {
+  /** Device and user details object */
   details: DeviceUserDetails;
 }
 
 export const DeviceUserDetailsPanel: React.FC<DeviceUserDetailsPanelProps> = ({
   details,
 }) => {
+  /**
+   * Determines badge color classes based on compliance state
+   * @param {string} state - Compliance state (Compliant, Non-Compliant, etc.)
+   * @returns {string} Tailwind CSS classes for compliance badge
+   */
   const getComplianceColor = (state: string) => {
     if (state.toLowerCase() === "compliant")
       return "bg-[#D1FAE5] text-[#065F46] border-[#065F46]/20";
     return "bg-[#FEE2E2] text-[#991B1B] border-[#991B1B]/20";
   };
 
+  /**
+   * Calculates overall device health status based on multiple factors
+   * Evaluates compliance, resource usage, sync status, and network connectivity
+   *
+   * Scoring Algorithm:
+   * - Base score: 100 points
+   * - Non-compliant: -40 points (critical factor)
+   * - High memory usage (>90%): -20 points, (>80%): -10 points
+   * - High disk usage (>90%): -20 points, (>80%): -10 points
+   * - Not synced in 48+ hours: -15 points
+   * - No network connection: -15 points
+   *
+   * Status Thresholds:
+   * - Healthy: score >= 80
+   * - Warning: score 50-79
+   * - Critical: score < 50
+   *
+   * @returns {object} Health status with status text, color class, and background color
+   */
   // Calculate overall health status based on multiple factors
-  const calculateHealthStatus = (): {
+  const _calculateHealthStatus = (): {
     status: "Healthy" | "Warning" | "Critical";
     color: string;
     bgColor: string;
@@ -136,7 +241,8 @@ export const DeviceUserDetailsPanel: React.FC<DeviceUserDetailsPanelProps> = ({
     }
   };
 
-  const healthStatus = calculateHealthStatus();
+  // Health status calculation available for future use
+  // const _healthStatus = calculateHealthStatus();
 
   return (
     <div className="space-y-4 sm:space-y-6">

@@ -27,6 +27,20 @@ export default defineConfig(({ mode }) => {
     ],
     publicDir: "./static",
     base: "/",
+    resolve: {
+      alias: {
+        "@": resolve(__dirname, "./src"),
+        "@components": resolve(__dirname, "./src/components"),
+        "@ui": resolve(__dirname, "./src/components/ui"),
+        "@types": resolve(__dirname, "./src/types"),
+        "@hooks": resolve(__dirname, "./src/hooks"),
+        "@services": resolve(__dirname, "./src/services"),
+        "@lib": resolve(__dirname, "./src/lib"),
+        "@config": resolve(__dirname, "./src/config"),
+        "@context": resolve(__dirname, "./src/context"),
+        "@constants": resolve(__dirname, "./src/constants"),
+      },
+    },
     css: {
       postcss: {
         plugins: [tailwind()],

@@ -1,21 +1,70 @@
+/**
+ * IncidentCard Component
+ *
+ * Main ticket card container that displays incident header, metadata, and tabbed content.
+ * Provides unified interface for viewing ticket details, diagnostics, and device/user information.
+ *
+ * Features:
+ * - Responsive tab navigation (Ticket Details, Diagnostics, Device & User Details)
+ * - Color-coded status and priority badges
+ * - Collapsible activity log section
+ * - Comprehensive ticket metadata grid (user, device, status, priority, category, assigned to, created date)
+ * - Mobile-responsive design with horizontal scroll for tabs on small screens
+ *
+ * @example
+ * <IncidentCard
+ *   incidentNumber="INC0012345"
+ *   title="Laptop not connecting to WiFi"
+ *   status="In Progress"
+ *   priority="High"
+ *   userDisplayName="John Doe"
+ *   deviceName="LAPTOP-ABC123"
+ *   created="2025-12-18T10:30:00Z"
+ *   assignedTo="Jane Smith"
+ *   category="Network"
+ *   activeTab="ticket-details"
+ *   onTabChange={(tab) => setActiveTab(tab)}
+ *   activityLogExpanded={false}
+ *   onActivityLogToggle={() => setExpanded(!expanded)}
+ * />
+ */
 import React from "react";
-import { Badge } from "../../components/ui/badge";
+import { Badge } from "@ui/badge";
 import { TicketIcon } from "lucide-react";
 
+/**
+ * Props for the IncidentCard component
+ *
+ * @interface IncidentCardProps
+ */
 export interface IncidentCardProps {
+  /** Ticket identifier (e.g., INC0012345) */
   incidentNumber: string;
+  /** Short description of the issue */
   title: string;
+  /** Current ticket status (New, In Progress, Resolved, etc.) */
   status: string;
+  /** Priority level (High, Medium, Low, Critical) */
   priority: string;
+  /** Full name of the user who reported the incident */
   userDisplayName: string;
+  /** Name of the device associated with the incident */
   deviceName: string;
+  /** ISO timestamp when the ticket was created */
   created: string;
+  /** Name of the technician assigned to the ticket */
   assignedTo: string;
+  /** Incident category/classification */
   category: string;
+  /** Currently active tab ("ticket-details" | "diagnostics" | "device-user-details") */
   activeTab: string;
+  /** Callback fired when tab selection changes */
   onTabChange: (tab: string) => void;
+  /** Whether the activity log section is expanded */
   activityLogExpanded?: boolean;
+  /** Callback fired when activity log expand/collapse is toggled */
   onActivityLogToggle?: () => void;
+  /** Child components rendered inside tab content areas */
   children?: React.ReactNode;
 }
 
@@ -35,6 +84,11 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
   onActivityLogToggle: _onActivityLogToggle,
   children,
 }) => {
+  /**
+   * Determines badge color classes based on ticket status
+   * @param {string} status - Ticket status text
+   * @returns {string} Tailwind CSS classes for status badge
+   */
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
     if (statusLower.includes("progress"))
@@ -46,6 +100,11 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
     return "bg-gray-100 text-gray-700 border-gray-300";
   };
 
+  /**
+   * Determines badge color classes based on ticket priority
+   * @param {string} priority - Priority level (High, Medium, Low)
+   * @returns {string} Tailwind CSS classes for priority badge
+   */
   const getPriorityColor = (priority: string) => {
     const priorityLower = priority.toLowerCase();
     if (priorityLower === "high")

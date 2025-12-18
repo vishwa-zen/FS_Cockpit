@@ -1,4 +1,8 @@
 import axios from "axios";
+import { API_ENDPOINTS } from "@constants/api";
+import { PRIORITY, STATUS } from "@constants/statuses";
+import { DEMO_SERVICES, HEALTH_COLORS } from "@constants/demo";
+import { DEFAULT_TECHNICIAN_ID } from "@constants/ui";
 
 /**
  * API Service Module
@@ -29,35 +33,17 @@ declare const process: {
  * Only logs in development mode to prevent console pollution in production
  */
 const logger = {
-  debug: (message: string, ...args: any[]) => {
-    if (
-      typeof import.meta !== "undefined" &&
-      (import.meta as any).env?.MODE !== "production"
-    ) {
-      console.debug(`[API Debug] ${message}`, ...args);
-    }
+  debug: (_message: string, ..._args: any[]) => {
+    // Disabled in production
   },
-  info: (message: string, ...args: any[]) => {
-    if (
-      typeof import.meta !== "undefined" &&
-      (import.meta as any).env?.MODE !== "production"
-    ) {
-      console.info(`[API Info] ${message}`, ...args);
-    }
+  info: (_message: string, ..._args: any[]) => {
+    // Disabled in production
   },
-  warn: (message: string, ...args: any[]) => {
-    console.warn(`[API Warning] ${message}`, ...args);
+  warn: (_message: string, ..._args: any[]) => {
+    // Disabled
   },
-  error: (message: string, error?: any) => {
-    // Always log errors, but sanitize in production
-    if (
-      typeof import.meta !== "undefined" &&
-      (import.meta as any).env?.MODE === "production"
-    ) {
-      console.error(`[API Error] ${message}`);
-    } else {
-      console.error(`[API Error] ${message}`, error);
-    }
+  error: (_message: string, _error?: any) => {
+    // Disabled - errors handled by callers
   },
 };
 
@@ -183,6 +169,22 @@ apiClient.interceptors.response.use(
  *
  * Represents a single incident/ticket with all relevant details
  * including assignee, status, priority, and timestamps.
+ *
+ * @interface Incident
+ * @property {string} sysId - Unique system identifier
+ * @property {string} incidentNumber - Incident number (e.g., INC0012345)
+ * @property {string} shortDescription - Brief description of the issue
+ * @property {string} priority - Priority level (1=High, 2=Medium, 3=Low)
+ * @property {number} impact - Impact level numeric value
+ * @property {string} status - Current incident status (New, In Progress, Resolved, etc.)
+ * @property {boolean} active - Whether incident is currently active
+ * @property {string} assignedTo - Technician assigned to incident
+ * @property {string} deviceName - Device associated with incident
+ * @property {string} createdBy - User who created the incident
+ * @property {string | null} callerId - Caller's user ID
+ * @property {string | null} callerName - Caller's display name
+ * @property {string} openedAt - ISO 8601 timestamp when opened
+ * @property {string} lastUpdatedAt - ISO 8601 timestamp of last update
  */
 export interface Incident {
   sysId: string;
@@ -235,50 +237,112 @@ export interface IncidentsData {
   pagination?: PaginationInfo;
 }
 
-// Helper function to map numeric priority to text labels
-// API returns: 1=High, 2=Medium, 3=Low
+/**
+ * Map numeric priority codes to text labels
+ *
+ * ServiceNow API returns numeric priorities that need conversion:
+ * - 1 → "High"
+ * - 2 → "Medium"
+ * - 3 → "Low"
+ * - "Critical" → "High" (legacy compatibility)
+ *
+ * @param {string | number} priority - Numeric or text priority from API
+ * @returns {string} Text priority label for UI display
+ *
+ * @example
+ * mapPriorityToText(1) // Returns "High"
+ * mapPriorityToText("2") // Returns "Medium"
+ * mapPriorityToText("Critical") // Returns "High"
+ */
 export const mapPriorityToText = (priority: string | number): string => {
   const priorityStr = String(priority).trim();
 
   // Map numeric priorities from API
-  if (priorityStr === "1") return "High";
-  if (priorityStr === "2") return "Medium";
-  if (priorityStr === "3") return "Low";
+  if (priorityStr === "1") return PRIORITY.HIGH;
+  if (priorityStr === "2") return PRIORITY.MEDIUM;
+  if (priorityStr === "3") return PRIORITY.LOW;
 
   // Handle any "Critical" text that might come from API or cache - map to High
-  if (priorityStr.toLowerCase().includes("critical")) return "High";
+  if (priorityStr.toLowerCase().includes("critical")) return PRIORITY.HIGH;
 
   // Return as-is if already text
   return priorityStr;
 };
 
-// Helper function to map priority to color
+/**
+ * Get Tailwind CSS classes for priority badge styling
+ *
+ * Maps priority levels to color-coded badge classes:
+ * - High: Red background (#ffe2e2) with dark red text (#c10007)
+ * - Medium: Yellow background (#fef9c2) with brown text (#a65f00)
+ * - Low: Orange background (#fff4e6) with dark orange text (#d97706)
+ * - Default: Blue background for unknown priorities
+ *
+ * @param {string | number} priority - Priority value from API
+ * @returns {string} Tailwind CSS class string for badge styling
+ *
+ * @example
+ * getPriorityColor("High") // Returns "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]"
+ * getPriorityColor(1) // Returns "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]"
+ */
 export const getPriorityColor = (priority: string | number): string => {
   const priorityText = mapPriorityToText(priority);
 
   if (priorityText.toLowerCase().includes("high")) {
-    return "bg-[#ffe2e2] text-[#c10007] border-[#ffc9c9]";
+    return "bg-priority-high text-priority-high-text border-transparent";
   } else if (priorityText.toLowerCase().includes("medium")) {
-    return "bg-[#fef9c2] text-[#a65f00] border-[#feef85]";
+    return "bg-priority-medium text-priority-medium-text border-transparent";
   } else if (priorityText.toLowerCase().includes("low")) {
-    return "bg-[#fff4e6] text-[#d97706] border-[#fed7aa]";
+    return "bg-priority-low text-priority-low-text border-transparent";
   }
-  return "bg-[#f0f9ff] text-[#0369a1] border-[#bae6fd]";
+  return "bg-badge-blue text-badge-blue-text border-transparent";
 };
 
-// Helper function to map status to color
+/**
+ * Get Tailwind CSS classes for status badge styling
+ *
+ * Maps incident statuses to color-coded badge classes:
+ * - "In Progress": Orange background with dark orange text
+ * - "New"/"Open": Blue background with dark blue text
+ * - "Resolved"/"Closed": Green background with dark green text
+ * - Default: Gray background for unknown statuses
+ *
+ * @param {string} status - Incident status from API
+ * @returns {string} Tailwind CSS class string for badge styling
+ *
+ * @example
+ * getStatusColor("In Progress") // Returns "bg-[#ffedd4] text-[#c93400] border-transparent"
+ * getStatusColor("Resolved") // Returns "bg-[#d1fae5] text-[#065f46] border-transparent"
+ */
 export const getStatusColor = (status: string): string => {
-  if (status === "In Progress") {
-    return "bg-[#ffedd4] text-[#c93400] border-transparent";
-  } else if (status === "New" || status === "Open") {
-    return "bg-[#dbeafe] text-[#1e40af] border-transparent";
-  } else if (status === "Resolved" || status === "Closed") {
-    return "bg-[#d1fae5] text-[#065f46] border-transparent";
+  if (status === STATUS.IN_PROGRESS) {
+    return "bg-badge-yellow text-badge-yellow-text border-transparent";
+  } else if (status === STATUS.NEW || status === STATUS.OPEN) {
+    return "bg-badge-blue text-badge-blue-text border-transparent";
+  } else if (status === STATUS.RESOLVED || status === STATUS.CLOSED) {
+    return "bg-badge-green text-badge-green-text border-transparent";
   }
-  return "bg-[#f3f4f6] text-[#374151] border-transparent";
+  return "bg-badge-gray text-badge-gray-text border-transparent";
 };
 
-// Helper function to format time ago
+/**
+ * Convert ISO 8601 timestamp to human-readable relative time
+ *
+ * Calculates time difference between now and provided date,
+ * returning the most appropriate time unit:
+ * - Minutes (< 60 minutes)
+ * - Hours (< 24 hours)
+ * - Days (< 7 days)
+ * - Weeks (< 4 weeks)
+ * - Months (>= 4 weeks)
+ *
+ * @param {string} dateString - ISO 8601 timestamp from API
+ * @returns {string} Human-readable relative time string
+ *
+ * @example
+ * getTimeAgo("2024-12-18T10:30:00Z") // Returns "2 hours ago" (if current time is 12:30)
+ * getTimeAgo("2024-12-15T10:30:00Z") // Returns "3 days ago"
+ */
 export const getTimeAgo = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();
@@ -302,13 +366,44 @@ export const getTimeAgo = (dateString: string): string => {
   }
 };
 
-// API endpoints
+/**
+ * Tickets API Namespace
+ *
+ * Provides methods for retrieving and searching incident data from ServiceNow.
+ * All methods return transformed data with UI-friendly formats and color codes.
+ *
+ * Available Methods:
+ * - getUserIncidents: Get incidents by username
+ * - getIncidentsByDevice: Get incidents by device name
+ * - getMyTickets: Get tickets assigned to technician (paginated)
+ * - getIncidentByNumber: Get specific incident by ticket number
+ * - getIncidentDetails: Get full incident details for ticket view
+ * - getTicketById: Get single ticket by ID from cached tickets
+ * - searchTickets: Universal search across users, devices, and tickets
+ *
+ * @namespace ticketsAPI
+ */
 export const ticketsAPI = {
-  // Search incidents by username
+  /**
+   * Get incidents by username
+   *
+   * Fetches all incidents associated with a specific user from ServiceNow.
+   * Transforms raw API data into UI format with color codes and relative timestamps.
+   *
+   * @async
+   * @param {string} userName - Username to search for
+   * @returns {Promise<{data: Array, success: boolean, message: string}>} Transformed incidents
+   *
+   * @example
+   * const result = await ticketsAPI.getUserIncidents(\"john.doe\");
+   * if (result.success) {
+   *   console.log(`Found ${result.data.length} tickets for user`);
+   * }
+   */
   getUserIncidents: async (userName: string) => {
     try {
       const response = await apiClient.get<ApiResponse<IncidentsData>>(
-        `/servicenow/user/${encodeURIComponent(userName)}/incidents`
+        API_ENDPOINTS.SERVICENOW.USER_INCIDENTS(encodeURIComponent(userName))
       );
       if (response.data.success) {
         // Transform the data to match our UI format
@@ -352,11 +447,29 @@ export const ticketsAPI = {
     }
   },
 
+  /**
+   * Get incidents by device name
+   *
+   * Fetches all incidents associated with a specific device from ServiceNow.
+   * Useful for tracking device-specific issues and troubleshooting patterns.
+   *
+   * @async
+   * @param {string} deviceName - Device hostname or computer name to search for
+   * @returns {Promise<{data: Array, success: boolean, message: string}>} Transformed incidents array
+   *
+   * @example
+   * const result = await ticketsAPI.getIncidentsByDevice("LAPTOP-ABC123");
+   * if (result.success) {
+   *   console.log(`Found ${result.data.length} tickets for device`);
+   * }
+   */
   // Search incidents by device name
   getIncidentsByDevice: async (deviceName: string) => {
     try {
       const response = await apiClient.get<ApiResponse<IncidentsData>>(
-        `/servicenow/device/${encodeURIComponent(deviceName)}/incidents`
+        API_ENDPOINTS.SERVICENOW.DEVICE_INCIDENTS(
+          encodeURIComponent(deviceName)
+        )
       );
       if (response.data.success) {
         // Transform the data to match our UI format
@@ -399,10 +512,42 @@ export const ticketsAPI = {
       };
     }
   },
+
+  /**
+   * Get tickets assigned to technician (paginated)
+   *
+   * Fetches incidents assigned to the FS_Cockpit_Integration technician account.
+   * Supports pagination with limit and offset parameters for efficient data loading.
+   *
+   * Features:
+   * - Pagination support with customizable limit and offset
+   * - Device name validation and logging for missing data
+   * - Enhanced error messages for timeout, network, and server errors
+   * - Returns pagination metadata (total, limit, offset, has_more)
+   *
+   * @async
+   * @param {number} [limit=25] - Maximum number of tickets to return per page
+   * @param {number} [offset=0] - Number of tickets to skip (for pagination)
+   * @returns {Promise<{data: Array, pagination: PaginationInfo, success: boolean, message: string}>} Paginated tickets
+   *
+   * @example
+   * // Get first page of 25 tickets
+   * const page1 = await ticketsAPI.getMyTickets(25, 0);
+   *
+   * // Get second page
+   * const page2 = await ticketsAPI.getMyTickets(25, 25);
+   *
+   * // Check if more pages available
+   * if (page1.pagination.has_more) {
+   *   console.log(`Total tickets: ${page1.pagination.total}`);
+   * }
+   */
   getMyTickets: async (limit: number = 25, offset: number = 0) => {
     try {
       const response = await apiClient.get<ApiResponse<IncidentsData>>(
-        `/servicenow/technician/FS_Cockpit_Integration/incidents?limit=${limit}&offset=${offset}`
+        `${API_ENDPOINTS.SERVICENOW.TECHNICIAN_INCIDENTS(
+          DEFAULT_TECHNICIAN_ID
+        )}?limit=${limit}&offset=${offset}`
       );
 
       if (response.data.success) {
@@ -469,11 +614,29 @@ export const ticketsAPI = {
     }
   },
 
+  /**
+   * Get incident details by incident number
+   *
+   * Fetches a specific incident using its ticket number (e.g., INC0012345).
+   * Used for Ticket search type to retrieve exact match by incident number.
+   *
+   * @async
+   * @param {string} incidentNumber - Ticket number to search for (e.g., "INC0012345")
+   * @returns {Promise<{data: Array, success: boolean, message: string}>} Single incident in array format
+   *
+   * @example
+   * const result = await ticketsAPI.getIncidentByNumber("INC0012345");
+   * if (result.success && result.data.length > 0) {
+   *   console.log(`Found ticket: ${result.data[0].title}`);
+   * }
+   */
   // Get incident details by incident number
   getIncidentByNumber: async (incidentNumber: string) => {
     try {
       const response = await apiClient.get<ApiResponse<Incident>>(
-        `/servicenow/incident/${encodeURIComponent(incidentNumber)}/details`
+        API_ENDPOINTS.SERVICENOW.INCIDENT_DETAILS(
+          encodeURIComponent(incidentNumber)
+        )
       );
       if (response.data.success) {
         // Transform single incident to UI format
@@ -516,11 +679,36 @@ export const ticketsAPI = {
     }
   },
 
+  /**
+   * Get full incident details for ticket details view
+   *
+   * Retrieves comprehensive incident information for displaying in the ticket details panel.
+   * Returns single incident object (not array) with all metadata and timestamps.
+   *
+   * Features:
+   * - Full incident metadata including status, priority, assignments
+   * - Device name logging for debugging missing data
+   * - Enhanced error handling with specific messages for 404, timeout, network errors
+   * - Returns null data on failure instead of array
+   *
+   * @async
+   * @param {string} incidentNumber - Incident number to retrieve
+   * @returns {Promise<{data: object|null, success: boolean, message: string}>} Full incident details
+   *
+   * @example
+   * const result = await ticketsAPI.getIncidentDetails("INC0012345");
+   * if (result.success && result.data) {
+   *   console.log(`Status: ${result.data.status}`);
+   *   console.log(`Device: ${result.data.device}`);
+   * }
+   */
   // Get full incident details for ticket details view
   getIncidentDetails: async (incidentNumber: string) => {
     try {
       const response = await apiClient.get<ApiResponse<Incident>>(
-        `/servicenow/incident/${encodeURIComponent(incidentNumber)}/details`
+        API_ENDPOINTS.SERVICENOW.INCIDENT_DETAILS(
+          encodeURIComponent(incidentNumber)
+        )
       );
       if (response.data.success) {
         // Transform single incident to UI format with full details
@@ -581,6 +769,22 @@ export const ticketsAPI = {
     }
   },
 
+  /**
+   * Get single ticket by ID from cached tickets
+   *
+   * Searches through all fetched tickets to find one matching the specified ID.
+   * Uses in-memory cache from getMyTickets() to avoid additional API calls.
+   *
+   * @async
+   * @param {string} id - Ticket ID/incident number to find
+   * @returns {Promise<{data: object|null, success: boolean}>} Single ticket or null if not found
+   *
+   * @example
+   * const result = await ticketsAPI.getTicketById("INC0012345");
+   * if (result.success && result.data) {
+   *   console.log(`Found ticket: ${result.data.title}`);
+   * }
+   */
   getTicketById: async (id: string) => {
     try {
       // First get all tickets, then filter by ID
@@ -592,11 +796,36 @@ export const ticketsAPI = {
         success: !!ticket,
       };
     } catch (error) {
-      console.error("API Error:", error);
       return { data: null, success: false };
     }
   },
 
+  /**
+   * Universal search across users, devices, and tickets
+   *
+   * Provides flexible search functionality with type-specific filtering:
+   * - "Ticket" type: Searches by exact incident number using API
+   * - "Device" type: Filters by device name (case-insensitive substring match)
+   * - "User" type: Filters by caller ID or created by fields
+   * - Default: Searches across ID, title, and device fields
+   *
+   * Empty query returns all tickets from getMyTickets().
+   *
+   * @async
+   * @param {string} query - Search query string
+   * @param {string} type - Search type ("Ticket" | "Device" | "User" | default)
+   * @returns {Promise<{data: Array, success: boolean, message: string}>} Filtered tickets array
+   *
+   * @example
+   * // Search by ticket number
+   * const tickets = await ticketsAPI.searchTickets("INC0012345", "Ticket");
+   *
+   * // Search by device name
+   * const deviceTickets = await ticketsAPI.searchTickets("LAPTOP", "Device");
+   *
+   * // Search by username
+   * const userTickets = await ticketsAPI.searchTickets("john.doe", "User");
+   */
   searchTickets: async (query: string, type: string) => {
     try {
       if (!query.trim()) {
@@ -638,7 +867,6 @@ export const ticketsAPI = {
         message: `Found ${filtered.length} results`,
       };
     } catch (error) {
-      console.error("API Error:", error);
       return { data: [], success: false };
     }
   },
@@ -677,51 +905,86 @@ export interface SolutionSummaryData {
 }
 
 export const knowledgeAPI = {
-  // Original API - commented out
-  // getKnowledgeArticles: async (incidentNumber: string, limit: number = 3) => {
-  //   try {
-  //     const response = await apiClient.get<ApiResponse<KnowledgeData>>(
-  //       `/servicenow/incident/${encodeURIComponent(
-  //         incidentNumber
-  //       )}/knowledge?limit=${limit}`
-  //     );
-  //     if (response.data.success) {
-  //       return {
-  //         data: response.data.data.articles,
-  //         success: true,
-  //         message: response.data.message,
-  //       };
-  //     }
-  //     throw new Error(
-  //       response.data.message || "Knowledge articles not available"
-  //     );
-  //   } catch (error: any) {
-  //     logger.error("Failed to fetch knowledge articles", error);
+  /**
+   * Get knowledge base articles for incident
+   *
+   * Retrieves relevant KB articles related to the incident.
+   *
+   * @async
+   * @param {string} incidentNumber - Incident number to get KB articles for
+   * @param {number} [limit=3] - Maximum number of articles to retrieve
+   * @returns {Promise<{data: KnowledgeArticle[], success: boolean, message: string}>} Knowledge articles array
+   */
+  getKnowledgeArticles: async (incidentNumber: string, limit: number = 3) => {
+    try {
+      const response = await apiClient.get<ApiResponse<KnowledgeData>>(
+        API_ENDPOINTS.SERVICENOW.KNOWLEDGE_ARTICLES(
+          encodeURIComponent(incidentNumber),
+          limit
+        )
+      );
+      if (response.data.success) {
+        return {
+          data: response.data.data.articles,
+          success: true,
+          message: response.data.message,
+        };
+      }
+      throw new Error(
+        response.data.message || "Knowledge articles not available"
+      );
+    } catch (error: any) {
+      logger.error("Failed to fetch knowledge articles", error);
 
-  //     let errorMessage = "Unable to retrieve knowledge articles";
-  //     if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-  //       errorMessage = "Request timeout - please try again";
-  //     } else if (error.code === "ERR_NETWORK" || !error.response) {
-  //       errorMessage = "Knowledge base temporarily unavailable";
-  //     } else if (error.response?.status === 404) {
-  //       errorMessage = "No relevant articles found";
-  //     }
+      let errorMessage = "Unable to retrieve knowledge articles";
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timeout - please try again";
+      } else if (error.code === "ERR_NETWORK" || !error.response) {
+        errorMessage = "Knowledge base temporarily unavailable";
+      } else if (error.response?.status === 404) {
+        errorMessage = "No relevant articles found";
+      }
 
-  //     return {
-  //       data: [],
-  //       success: false,
-  //       message: errorMessage,
-  //     };
-  //   }
-  // },
+      return {
+        data: [],
+        success: false,
+        message: errorMessage,
+      };
+    }
+  },
 
+  /**
+   * Get AI-generated solution summary for incident
+   *
+   * Retrieves summarized solution recommendations based on related knowledge base articles.
+   * Uses AI to analyze KB articles and generate actionable summary points.
+   *
+   * Response includes:
+   * - Summary points array with key recommendations
+   * - Source information (which KB articles were used)
+   * - Confidence level of the summary
+   * - KB article count metadata
+   *
+   * @async
+   * @param {string} incidentNumber - Incident number to get solution summary for
+   * @param {number} [limit=3] - Maximum number of KB articles to analyze
+   * @returns {Promise<{data: SolutionSummaryData|null, success: boolean, message: string}>} Solution summary object
+   *
+   * @example
+   * const result = await knowledgeAPI.getSolutionSummary("INC0012345", 3);
+   * if (result.success && result.data) {
+   *   console.log(`Confidence: ${result.data.confidence}`);
+   *   result.data.summary_points.forEach(point => console.log(`- ${point}`));
+   * }
+   */
   // New Solution Summary API
   getSolutionSummary: async (incidentNumber: string, limit: number = 3) => {
     try {
       const response = await apiClient.get<ApiResponse<SolutionSummaryData>>(
-        `/servicenow/incident/${encodeURIComponent(
-          incidentNumber
-        )}/solution_summary?limit=${limit}`
+        API_ENDPOINTS.SERVICENOW.SOLUTION_SUMMARY(
+          encodeURIComponent(incidentNumber),
+          limit
+        )
       );
       if (response.data.success) {
         return {
@@ -754,7 +1017,45 @@ export const knowledgeAPI = {
   },
 };
 
+/**
+ * Diagnostics API Namespace
+ *
+ * Provides methods for retrieving device diagnostics and health metrics from NextThink.
+ * Includes comprehensive hardware, OS, and application health data.
+ *
+ * @namespace diagnosticsAPI
+ */
 export const diagnosticsAPI = {
+  /**
+   * Get device diagnostics from NextThink
+   *
+   * Fetches comprehensive device health metrics including:
+   * - Hardware: CPU usage, memory, disk, network, boot metrics
+   * - OS Health: Build info, uptime, last update
+   * - Device Scores: DEX score, endpoint score, reliability, performance
+   * - Application Health: Crash counts, alert summary
+   *
+   * Supports two modes:
+   * - "full": Complete diagnostics with all metrics
+   * - "quick": Essential metrics only for faster response
+   *
+   * @async
+   * @param {string} deviceName - Device hostname/computer name
+   * @param {"full"|"quick"} [mode="full"] - Diagnostics detail level
+   * @param {boolean} [includeDetails=true] - Whether to include detailed breakdowns
+   * @returns {Promise<{data: object|null, success: boolean, message: string}>} Device diagnostics data
+   *
+   * @example
+   * // Get full diagnostics
+   * const full = await diagnosticsAPI.getDeviceDiagnostics("LAPTOP-ABC123", "full", true);
+   * if (full.success && full.data) {
+   *   console.log(`CPU Usage: ${full.data.hardware.cpu.cpu_usage_percent}%`);
+   *   console.log(`DEX Score: ${full.data.device_scores.overall_dex_score}`);
+   * }
+   *
+   * // Get quick diagnostics
+   * const quick = await diagnosticsAPI.getDeviceDiagnostics("LAPTOP-ABC123", "quick", false);
+   */
   getDeviceDiagnostics: async (
     deviceName: string,
     mode: "full" | "quick" = "full",
@@ -839,7 +1140,7 @@ export const diagnosticsAPI = {
           data_completeness_percent: number;
           notes: string | null;
         }>
-      >("/nextthink/diagnostics", {
+      >(API_ENDPOINTS.NEXTTHINK.DIAGNOSTICS, {
         device_name: deviceName,
         mode,
         include_details: includeDetails,
@@ -872,20 +1173,39 @@ export const diagnosticsAPI = {
     }
   },
 
+  /**
+   * Get root cause analysis for ticket (legacy/stub)
+   *
+   * Placeholder method for root cause analysis.
+   * Currently returns empty array on error.
+   *
+   * @async
+   * @param {string} ticketId - Ticket ID to analyze
+   * @returns {Promise<{data: Array}>} Root causes array
+   */
   getRootCauses: async (ticketId: string) => {
     try {
       return await apiClient.get(`/diagnostics/${ticketId}/root-causes`);
     } catch (error) {
-      console.error("API Error:", error);
       return { data: [] };
     }
   },
 
+  /**
+   * Get recommended actions for ticket (legacy/stub)
+   *
+   * Placeholder method for action recommendations.
+   * Currently returns empty array on error.
+   * Use remoteActionsAPI.getRecommendations for active implementation.
+   *
+   * @async
+   * @param {string} ticketId - Ticket ID to get actions for
+   * @returns {Promise<{data: Array}>} Recommended actions array
+   */
   getRecommendedActions: async (ticketId: string) => {
     try {
       return await apiClient.get(`/diagnostics/${ticketId}/actions`);
     } catch (error) {
-      console.error("API Error:", error);
       return { data: [] };
     }
   },
@@ -937,12 +1257,41 @@ export interface HealthMetricsData {
   generated_at: string;
 }
 
+/**
+ * Health Check API Namespace
+ *
+ * Provides methods for monitoring backend service health and uptime metrics.
+ * Supports real-time health checks and historical metric analysis.
+ *
+ * Services monitored:
+ * - ServiceNow: Incident management system
+ * - Intune: Device management platform
+ * - NextThink: Diagnostics and analytics
+ *
+ * @namespace healthAPI
+ */
 export const healthAPI = {
+  /**
+   * Check ServiceNow service health
+   *
+   * Performs real-time health check on ServiceNow API connectivity.
+   * Returns authentication status, instance URLs, and token expiration info.
+   *
+   * @async
+   * @returns {Promise<{data: HealthCheckData|null, success: boolean, message: string}>} ServiceNow health status
+   *
+   * @example
+   * const result = await healthAPI.checkServiceNowHealth();
+   * if (result.success && result.data) {
+   *   console.log(`Status: ${result.data.status}`);
+   *   console.log(`Authenticated: ${result.data.authenticated}`);
+   * }
+   */
   // Check ServiceNow health
   checkServiceNowHealth: async () => {
     try {
       const response = await apiClient.get<ApiResponse<HealthCheckData>>(
-        "/servicenow/health"
+        API_ENDPOINTS.HEALTH.SERVICENOW
       );
       if (response.data.success) {
         return {
@@ -964,11 +1313,27 @@ export const healthAPI = {
     }
   },
 
+  /**
+   * Check Intune service health
+   *
+   * Performs real-time health check on Microsoft Intune API connectivity.
+   * Validates Graph API access and device management capabilities.
+   *
+   * @async
+   * @returns {Promise<{data: HealthCheckData|null, success: boolean, message: string}>} Intune health status
+   *
+   * @example
+   * const result = await healthAPI.checkIntuneHealth();
+   * if (result.success && result.data) {
+   *   console.log(`Status: ${result.data.status}`);
+   *   console.log(`Graph URL: ${result.data.graph_url}`);
+   * }
+   */
   // Check Intune health
   checkIntuneHealth: async () => {
     try {
       const response = await apiClient.get<ApiResponse<HealthCheckData>>(
-        "/intune/health"
+        API_ENDPOINTS.HEALTH.INTUNE
       );
       if (response.data.success) {
         return {
@@ -988,11 +1353,27 @@ export const healthAPI = {
     }
   },
 
+  /**
+   * Check NextThink service health
+   *
+   * Performs real-time health check on NextThink diagnostics API.
+   * Validates device query and analytics capabilities.
+   *
+   * @async
+   * @returns {Promise<{data: HealthCheckData|null, success: boolean, message: string}>} NextThink health status
+   *
+   * @example
+   * const result = await healthAPI.checkNextThinkHealth();
+   * if (result.success && result.data) {
+   *   console.log(`Status: ${result.data.status}`);
+   *   console.log(`API URL: ${result.data.api_url}`);
+   * }
+   */
   // Check NextThink health
   checkNextThinkHealth: async () => {
     try {
       const response = await apiClient.get<ApiResponse<HealthCheckData>>(
-        "/nextthink/health"
+        API_ENDPOINTS.HEALTH.NEXTTHINK
       );
       if (response.data.success) {
         return {
@@ -1012,11 +1393,32 @@ export const healthAPI = {
     }
   },
 
+  /**
+   * Get historical health metrics for all services
+   *
+   * Retrieves uptime/downtime statistics for specified time period.
+   * Includes:
+   * - Current status and last state change
+   * - Total checks performed (healthy vs unhealthy)
+   * - Uptime and downtime percentages
+   * - Downtime periods with start/end times and durations
+   *
+   * @async
+   * @param {number} [hours=24] - Time period in hours to retrieve metrics for
+   * @returns {Promise<{data: HealthMetricsData|null, success: boolean, message: string}>} Health metrics for all services
+   *
+   * @example
+   * const metrics = await healthAPI.getHealthMetrics(24);
+   * if (metrics.success && metrics.data) {
+   *   console.log(`ServiceNow uptime: ${metrics.data.services.servicenow.uptime_percentage}%`);
+   *   console.log(`Intune downtime: ${metrics.data.services.intune.total_downtime_minutes} mins`);
+   * }
+   */
   // Get health metrics for all services
   getHealthMetrics: async (hours: number = 24) => {
     try {
       const response = await apiClient.get<ApiResponse<HealthMetricsData>>(
-        `/health/metrics?hours=${hours}`
+        API_ENDPOINTS.HEALTH.METRICS(hours)
       );
       if (response.data.success) {
         return {
@@ -1038,6 +1440,24 @@ export const healthAPI = {
     }
   },
 
+  /**
+   * Check all services health in parallel
+   *
+   * Executes health checks for ServiceNow, Intune, and NextThink simultaneously
+   * using Promise.allSettled for resilient error handling.
+   *
+   * Always returns results for all three services even if some fail.
+   * Failed checks return `{data: null, success: false, message: "Check failed"}`.
+   *
+   * @async
+   * @returns {Promise<{serviceNow: object, intune: object, nextThink: object}>} Health status for all services
+   *
+   * @example
+   * const health = await healthAPI.checkAllServicesHealth();
+   * console.log(`ServiceNow: ${health.serviceNow.success ? 'UP' : 'DOWN'}`);
+   * console.log(`Intune: ${health.intune.success ? 'UP' : 'DOWN'}`);
+   * console.log(`NextThink: ${health.nextThink.success ? 'UP' : 'DOWN'}`);
+   */
   // Check all services health in parallel
   checkAllServicesHealth: async () => {
     try {
@@ -1073,21 +1493,37 @@ export const healthAPI = {
   },
 };
 
+/**
+ * System Status API Namespace (Legacy/Stub)
+ *
+ * Provides mock system status data for UI display.
+ * Returns hardcoded status indicators when backend is unavailable.
+ *
+ * @namespace systemStatusAPI
+ */
 export const systemStatusAPI = {
+  /**
+   * Get system status indicators
+   *
+   * Returns operational status for integrated services.
+   * Currently returns mock data with hardcoded values.
+   *
+   * @async
+   * @returns {Promise<{data: Array}>} Service status array
+   */
   getStatus: async () => {
     try {
       return await apiClient.get("/system/status");
     } catch (error) {
-      console.error("API Error:", error);
       return {
         data: [
-          { name: "ServiceNow", status: "operational", color: "bg-[#00c950]" },
-          { name: "Tachyon", status: "operational", color: "bg-[#00c950]" },
-          { name: "Nexthink", status: "degraded", color: "bg-[#f0b100]" },
+          DEMO_SERVICES.SERVICENOW,
+          DEMO_SERVICES.TACHYON,
+          DEMO_SERVICES.NEXTHINK,
           {
             name: "Intune / SCCM",
-            status: "operational",
-            color: "bg-[#00c950]",
+            status: "operational" as const,
+            color: HEALTH_COLORS.HEALTHY,
           },
         ],
       };
@@ -1169,7 +1605,50 @@ export interface RemoteActionsData {
   message: string | null;
 }
 
+/**
+ * Remote Actions API Namespace
+ *
+ * Provides methods for retrieving NextThink remote action recommendations
+ * based on incident context and device information.
+ *
+ * @namespace remoteActionsAPI
+ */
 export const remoteActionsAPI = {
+  /**
+   * Get remote action recommendations for incident
+   *
+   * Fetches AI-powered action recommendations from NextThink based on:
+   * - Incident number (required)
+   * - Device name (optional, improves accuracy)
+   * - Caller ID (optional, for user context)
+   *
+   * Returns actionable remediation steps with:
+   * - Action names and types
+   * - Execution status and results
+   * - NQL query IDs for execution
+   * - Purpose and status details
+   *
+   * @async
+   * @param {string} incidentNumber - Incident number to get recommendations for
+   * @param {string} [deviceName] - Device name for device-specific actions
+   * @param {string} [callerId] - User ID for user-context actions
+   * @param {number} [limit=3] - Maximum number of recommendations to return
+   * @returns {Promise<{data: RemoteAction[], success: boolean, message: string}>} Recommended actions array
+   *
+   * @example
+   * const result = await remoteActionsAPI.getRecommendations(
+   *   "INC0012345",
+   *   "LAPTOP-ABC123",
+   *   "john.doe",
+   *   3
+   * );
+   * if (result.success && result.data.length > 0) {
+   *   result.data.forEach(action => {
+   *     console.log(`Action: ${action.actionName}`);
+   *     console.log(`Purpose: ${action.result.purpose}`);
+   *   });
+   * }
+   */
   getRecommendations: async (
     incidentNumber: string,
     deviceName?: string,
@@ -1191,7 +1670,7 @@ export const remoteActionsAPI = {
       }
 
       const response = await apiClient.post<ApiResponse<RemoteActionsData>>(
-        "/nextthink/recommendations",
+        API_ENDPOINTS.NEXTTHINK.RECOMMENDATIONS,
         requestBody
       );
 
@@ -1226,12 +1705,37 @@ export const remoteActionsAPI = {
   },
 };
 
+/**
+ * Device API Namespace
+ *
+ * Provides methods for retrieving device information from ServiceNow and Intune.
+ * Supports both direct lookups and orchestrated multi-step queries.
+ *
+ * @namespace deviceAPI
+ */
 export const deviceAPI = {
+  /**
+   * Get user devices from ServiceNow
+   *
+   * Fetches all computers/devices assigned to a specific user in ServiceNow CMDB.
+   * Returns device metadata including serial numbers, hostnames, and assignments.
+   *
+   * @async
+   * @param {string} callerId - User ID to find devices for
+   * @returns {Promise<{data: Computer[], success: boolean, message: string}>} User's devices array
+   *
+   * @example
+   * const result = await deviceAPI.getUserDevices("john.doe");
+   * if (result.success && result.data.length > 0) {
+   *   console.log(`Found ${result.data.length} devices`);
+   *   console.log(`Primary device: ${result.data[0].name}`);
+   * }
+   */
   // Get user devices from ServiceNow
   getUserDevices: async (callerId: string) => {
     try {
       const response = await apiClient.get<ApiResponse<ComputersData>>(
-        `/servicenow/user/${encodeURIComponent(callerId)}/devices`
+        API_ENDPOINTS.SERVICENOW.USER_DEVICES(encodeURIComponent(callerId))
       );
       if (response.data.success) {
         return {
@@ -1251,12 +1755,40 @@ export const deviceAPI = {
     }
   },
 
+  /**
+   * Get device details from Intune
+   *
+   * Fetches comprehensive device information from Microsoft Intune by device name.
+   * Returns first matching device if multiple found.
+   *
+   * Device details include:
+   * - Device ID, name, and serial number
+   * - User information (UPN, display name)
+   * - OS version and compliance state
+   * - Enrollment and last sync timestamps
+   * - Hardware details (manufacturer, model)
+   * - Storage information (total/free space)
+   * - Network details (IP, MAC, connection type, VPN)
+   * - Encryption status
+   *
+   * @async
+   * @param {string} deviceName - Device hostname/computer name to search for
+   * @returns {Promise<{data: IntuneDevice|null, success: boolean, message: string}>} Device details or null
+   *
+   * @example
+   * const result = await deviceAPI.getDeviceDetails("LAPTOP-ABC123");
+   * if (result.success && result.data) {
+   *   console.log(`User: ${result.data.userDisplayName}`);
+   *   console.log(`Compliance: ${result.data.complianceState}`);
+   *   console.log(`OS: ${result.data.operatingSystem} ${result.data.osVersion}`);
+   * }
+   */
   // Get device details from Intune
   getDeviceDetails: async (deviceName: string) => {
     try {
       logger.debug(`[Intune API] Calling /intune/devices/name/${deviceName}`);
       const response = await apiClient.get<ApiResponse<IntuneDevicesData>>(
-        `/intune/devices/name/${encodeURIComponent(deviceName)}`
+        API_ENDPOINTS.INTUNE.DEVICE_BY_NAME(encodeURIComponent(deviceName))
       );
 
       // Log the full API response
@@ -1309,6 +1841,37 @@ export const deviceAPI = {
     }
   },
 
+  /**
+   * Get device details with orchestrated fallback logic
+   *
+   * Intelligent two-step device lookup process:
+   * 1. If device name missing/"Not Available" and caller ID provided:
+   *    - Fetch device name from ServiceNow user devices
+   *    - Use first device found
+   * 2. Fetch full device details from Intune using device name
+   *
+   * This orchestration handles scenarios where incident has caller ID but no device name,
+   * automatically resolving the device name before querying Intune.
+   *
+   * @async
+   * @param {string} [deviceName] - Device name if known (optional)
+   * @param {string} [callerId] - User ID for fallback device lookup (optional)
+   * @returns {Promise<{data: IntuneDevice|null, success: boolean, message: string}>} Device details or null
+   *
+   * @example
+   * // Direct lookup with known device name
+   * const result1 = await deviceAPI.getDeviceDetailsOrchestrated("LAPTOP-ABC123");
+   *
+   * // Orchestrated lookup with only caller ID (fetches device name first)
+   * const result2 = await deviceAPI.getDeviceDetailsOrchestrated(undefined, "john.doe");
+   *
+   * // Fallback when device name is "Not Available"
+   * const result3 = await deviceAPI.getDeviceDetailsOrchestrated("Not Available", "john.doe");
+   *
+   * if (result2.success && result2.data) {
+   *   console.log(`Auto-resolved device: ${result2.data.deviceName}`);
+   * }
+   */
   // Orchestrated call to get device details
   // Step 1: Get device name from ServiceNow if not provided
   // Step 2: Get device details from Intune

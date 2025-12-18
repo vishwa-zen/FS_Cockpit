@@ -90,7 +90,9 @@ interface DiagnosticsPanelProps {
 export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
   ({ diagnostics }) => {
     /**
-     * Get text color based on resource usage percentage
+     * Determines text color based on resource usage percentage
+     * Returns green for < 60%, orange for 60-79%, red for >= 80%
+     *
      * @param {string} usage - Usage percentage as string or "Not Available"
      * @returns {string} Tailwind CSS color class
      */
@@ -104,9 +106,14 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
     };
 
     /**
-     * Get battery icon and color based on charge level
+     * Determines battery icon and color based on charge level
+     * Returns different icons and colors for different charge ranges:
+     * - >=60%: BatteryFull icon, green color
+     * - 20-59%: BatteryMedium icon, orange color
+     * - <20%: BatteryLow icon, red color
+     *
      * @param {string} battery - Battery percentage as string or "Not Available"
-     * @returns {object} Object with icon component, text color, and background color
+     * @returns {object} Object containing icon component, text color, and background color classes
      */
     const getBatteryDisplay = (battery: string) => {
       if (battery === "Not Available") {
@@ -151,7 +158,11 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
     const BatteryIcon = batteryDisplay.icon;
 
     /**
-     * Get section health status icon and color
+     * Determines section health status icon and color
+     * Returns appropriate icon, color classes, and label for health indicators
+     *
+     * @param {string} [status] - Health status ("healthy" | "warning" | "critical")
+     * @returns {object} Object containing icon component, color classes, and label text
      */
     const getSectionHealth = (status?: "healthy" | "warning" | "critical") => {
       switch (status) {
@@ -195,7 +206,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
 
     return (
       <div className="space-y-6">
-        <h3 className="text-sm font-medium text-[#0E162B] mb-4">
+        <h3 className="[font-family:'Arial-Regular',Helvetica] text-sm sm:text-base font-semibold text-[#0E162B] mb-4">
           System Diagnostics
         </h3>
 
@@ -209,7 +220,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                 className={`w-4 h-4 ${hardwareHealthStatus.color}`}
               />
             </div>
-            <h4 className="text-sm font-semibold text-[#0E162B]">
+            <h4 className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
               Hardware - {hardwareHealthStatus.label}
             </h4>
           </div>
@@ -223,9 +234,11 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                   />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-[#61738D] mb-1">CPU Usage</div>
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
+                    CPU Usage
+                  </div>
                   <div
-                    className={`text-2xl font-semibold ${getUsageColor(
+                    className={`[font-family:'Arial-Regular',Helvetica] text-sm font-semibold ${getUsageColor(
                       diagnostics.cpuUsage
                     )}`}
                   >
@@ -246,9 +259,11 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                   />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-[#61738D] mb-1">RAM Usage</div>
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
+                    RAM Usage
+                  </div>
                   <div
-                    className={`text-2xl font-semibold ${getUsageColor(
+                    className={`[font-family:'Arial-Regular',Helvetica] text-sm font-semibold ${getUsageColor(
                       diagnostics.ramUsage
                     )}`}
                   >
@@ -269,11 +284,11 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                   <BatteryIcon className={`w-5 h-5 ${batteryDisplay.color}`} />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-[#61738D] mb-1">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                     Battery Level
                   </div>
                   <div
-                    className={`text-2xl font-semibold ${batteryDisplay.color}`}
+                    className={`[font-family:'Arial-Regular',Helvetica] text-sm font-semibold ${batteryDisplay.color}`}
                   >
                     {diagnostics.batteryPercentage === "Not Available" ||
                     !diagnostics.batteryPercentage
@@ -296,7 +311,11 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                 </div>
                 <div className="flex-1">
                   <div className="text-xs text-[#61738D] mb-1">Disk Usage</div>
-                  <div className="text-2xl font-semibold text-[#0E162B]">
+                  <div
+                    className={`text-sm font-semibold ${getUsageColor(
+                      diagnostics.diskUsage
+                    )}`}
+                  >
                     {diagnostics.diskUsage === "Not Available"
                       ? "Not Available"
                       : `${diagnostics.diskUsage}%`}
@@ -312,10 +331,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                   <Network className="w-5 h-5 text-[#8B5CF6]" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-[#61738D] mb-1">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                     Network Latency
                   </div>
-                  <div className="text-2xl font-semibold text-[#0E162B]">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                     {diagnostics.networkLatency === "Not Available"
                       ? "Not Available"
                       : `${diagnostics.networkLatency} ms`}
@@ -331,10 +350,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                   <ListChecks className="w-5 h-5 text-[#06B6D4]" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-[#61738D] mb-1">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                     Process Count
                   </div>
-                  <div className="text-2xl font-semibold text-[#0E162B]">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                     {diagnostics.processCount === "Not Available"
                       ? "Not Available"
                       : diagnostics.processCount}
@@ -350,10 +369,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                   <Clock className="w-5 h-5 text-[#EF4444]" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-[#61738D] mb-1">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                     System Uptime
                   </div>
-                  <div className="text-lg font-semibold text-[#0E162B]">
+                  <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                     {diagnostics.uptime === "Not Available"
                       ? "Not Available"
                       : diagnostics.uptime}
@@ -374,7 +393,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                 className={`w-4 h-4 ${osHealthStatus.color}`}
               />
             </div>
-            <h4 className="text-sm font-semibold text-[#0E162B]">
+            <h4 className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
               Operating System - {osHealthStatus.label}
             </h4>
           </div>
@@ -387,8 +406,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <Monitor className="w-5 h-5 text-[#6B7280]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">OS Build</div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
+                      OS Build
+                    </div>
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.osBuild}
                     </div>
                   </div>
@@ -404,10 +425,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <Monitor className="w-5 h-5 text-[#7C3AED]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                       Driver Health
                     </div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.driverHealth}
                     </div>
                   </div>
@@ -423,10 +444,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <RefreshCw className="w-5 h-5 text-[#3B82F6]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                       Restart Status
                     </div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.restartStatus}
                     </div>
                   </div>
@@ -446,7 +467,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                 className={`w-4 h-4 ${securityHealthStatus.color}`}
               />
             </div>
-            <h4 className="text-sm font-semibold text-[#0E162B]">
+            <h4 className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
               Security - {securityHealthStatus.label}
             </h4>
           </div>
@@ -459,10 +480,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <ShieldCheck className="w-5 h-5 text-[#10B981]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                       Encryption
                     </div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.encryptionStatus}
                     </div>
                   </div>
@@ -478,8 +499,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <Shield className="w-5 h-5 text-[#F59E0B]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">Antivirus</div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
+                      Antivirus
+                    </div>
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.antivirusStatus}
                     </div>
                   </div>
@@ -495,10 +518,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <Shield className="w-5 h-5 text-[#DC2626]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                       Vulnerability Scan
                     </div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.vulnerabilityScan}
                     </div>
                   </div>
@@ -518,7 +541,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                 className={`w-4 h-4 ${servicesHealthStatus.color}`}
               />
             </div>
-            <h4 className="text-sm font-semibold text-[#0E162B]">
+            <h4 className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
               Services/App Health - {servicesHealthStatus.label}
             </h4>
           </div>
@@ -531,10 +554,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <AppWindow className="w-5 h-5 text-[#6366F1]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                       Services Health
                     </div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.servicesHealth}
                     </div>
                   </div>
@@ -550,10 +573,10 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <AppWindow className="w-5 h-5 text-[#EC4899]" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs text-[#61738D] mb-1">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D] mb-1">
                       Running Apps
                     </div>
-                    <div className="text-lg font-semibold text-[#0E162B]">
+                    <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#5876AB]">
                       {diagnostics.runningApps}
                     </div>
                   </div>
@@ -570,7 +593,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
               <div className="w-6 h-6 rounded-full bg-[#FEE2E2] flex items-center justify-center">
                 <AlertCircle className="w-4 h-4 text-[#DC2626]" />
               </div>
-              <h4 className="text-sm font-semibold text-[#0E162B]">
+              <h4 className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
                 PC Local Logs - Issues Detected
               </h4>
             </div>
@@ -609,7 +632,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <span
-                          className={`text-xs font-medium uppercase ${
+                          className={`[font-family:'Arial-Regular',Helvetica] text-xs font-medium uppercase ${
                             log.severity === "error"
                               ? "text-[#DC2626]"
                               : log.severity === "warning"
@@ -619,14 +642,14 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                         >
                           {log.severity}
                         </span>
-                        <span className="text-xs text-[#61738D]">
+                        <span className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D]">
                           {log.timestamp}
                         </span>
                       </div>
-                      <div className="text-sm text-[#0E162B] font-medium mb-1">
+                      <div className="[font-family:'Arial-Regular',Helvetica] text-sm text-[#0E162B] font-medium mb-1">
                         {log.source}
                       </div>
-                      <div className="text-xs text-[#61738D]">
+                      <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D]">
                         {log.message}
                       </div>
                     </div>
@@ -645,7 +668,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                 <div className="w-6 h-6 rounded-full bg-[#FEF3C7] flex items-center justify-center">
                   <AlertTriangle className="w-4 h-4 text-[#F59E0B]" />
                 </div>
-                <h4 className="text-sm font-semibold text-[#0E162B]">
+                <h4 className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
                   Applications with Issues
                 </h4>
               </div>
@@ -677,11 +700,11 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <div className="text-sm font-semibold text-[#0E162B]">
+                          <div className="[font-family:'Arial-Regular',Helvetica] text-sm font-semibold text-[#0E162B]">
                             {app.name}
                           </div>
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            className={`[font-family:'Arial-Regular',Helvetica] text-xs px-2 py-0.5 rounded-full font-medium ${
                               app.severity === "critical"
                                 ? "bg-[#FEE2E2] text-[#DC2626]"
                                 : "bg-[#FEF3C7] text-[#F59E0B]"
@@ -690,7 +713,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = React.memo(
                             {app.severity.toUpperCase()}
                           </span>
                         </div>
-                        <div className="text-xs text-[#61738D]">
+                        <div className="[font-family:'Arial-Regular',Helvetica] text-xs text-[#61738D]">
                           {app.issue}
                         </div>
                       </div>

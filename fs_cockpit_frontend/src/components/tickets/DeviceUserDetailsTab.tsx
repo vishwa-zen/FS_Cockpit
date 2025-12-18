@@ -1,33 +1,97 @@
+/**
+ * DeviceUserDetailsTab Component
+ *
+ * Tab panel that displays device and user information along with knowledge/actions.
+ * Used within the IncidentCard's tabbed interface for the "Device & User Details" tab.
+ *
+ * Features:
+ * - Device and user details panel with compliance status
+ * - Knowledge base articles grid
+ * - Recommended actions grid
+ * - Loading state with spinner
+ * - Empty state when no device data available
+ * - Responsive layout (stacked on mobile, grid on desktop)
+ *
+ * @example
+ * <DeviceUserDetailsTab
+ *   details={{
+ *     userName: "John Doe",
+ *     userId: "john.doe@company.com",
+ *     deviceName: "LAPTOP-ABC123",
+ *     complianceState: "Compliant",
+ *     operatingSystem: "Windows 11",
+ *     emailId: "john.doe@company.com",
+ *     lastSyncDateTime: "2025-12-18T10:00:00Z",
+ *     serialNumber: "SN123456",
+ *     managedDeviceOwnerType: "Company"
+ *   }}
+ *   knowledgeItems={[]}
+ *   actionItems={[]}
+ *   isLoading={false}
+ *   onExecuteAction={(action) => console.log(action)}
+ * />
+ */
 import React from "react";
 import { DeviceUserDetailsPanel } from "./DeviceUserDetailsPanel";
 import { KnowledgePanel, KnowledgeItem } from "./KnowledgePanel";
 import { ActionsPanel, ActionItem } from "./ActionsPanel";
 import { Monitor } from "lucide-react";
 
+/**
+ * Device and user details data structure
+ *
+ * @interface DeviceUserDetails
+ */
 export interface DeviceUserDetails {
+  /** User's full display name */
   userName: string;
+  /** User's unique identifier (UPN) */
   userId: string;
+  /** Device hostname/computer name */
   deviceName: string;
+  /** Optional device health score */
   deviceScore?: string;
+  /** User's email address */
   emailId: string;
+  /** Optional employee ID */
   employeeId?: string;
+  /** Operating system name */
   operatingSystem: string;
+  /** OS version/build number */
   osVersion?: string;
+  /** Compliance status */
   complianceState: string;
+  /** Optional device ID */
   id?: string;
+  /** Last sync timestamp */
   lastSyncDateTime: string;
+  /** Device serial number */
   serialNumber: string;
+  /** Device ownership type */
   managedDeviceOwnerType: string;
+  /** Optional enrollment timestamp */
   enrolledDateTime?: string;
+  /** Memory usage percentage */
   memoryUsage?: string;
+  /** Disk usage percentage */
   diskUsage?: string;
 }
 
+/**
+ * Props for the DeviceUserDetailsTab component
+ *
+ * @interface DeviceUserDetailsTabProps
+ */
 interface DeviceUserDetailsTabProps {
+  /** Device and user details object (null if not available) */
   details: DeviceUserDetails | null;
+  /** Optional knowledge articles array */
   knowledgeItems?: KnowledgeItem[];
+  /** Optional recommended actions array */
   actionItems?: ActionItem[];
+  /** Whether device details are loading */
   isLoading?: boolean;
+  /** Callback for action execution */
   onExecuteAction?: (action: ActionItem) => void;
 }
 
