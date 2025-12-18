@@ -57,6 +57,8 @@ interface ActivityLogTabProps {
   isLoading?: boolean;
   /** Callback for action execution */
   onExecuteAction?: (action: ActionItem) => void;
+  /** Optional callback when a comment is added */
+  onAddComment?: (comment: string) => void;
 }
 
 export const ActivityLogTab: React.FC<ActivityLogTabProps> = ({
@@ -65,6 +67,7 @@ export const ActivityLogTab: React.FC<ActivityLogTabProps> = ({
   actionItems = [],
   isLoading = false,
   onExecuteAction,
+  onAddComment,
 }) => {
   if (isLoading) {
     return (
@@ -77,7 +80,7 @@ export const ActivityLogTab: React.FC<ActivityLogTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Activity Log Section */}
-      <ActivityLogPanel activities={activities} />
+      <ActivityLogPanel activities={activities} onAddComment={onAddComment} />
 
       {/* Knowledge and Actions Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

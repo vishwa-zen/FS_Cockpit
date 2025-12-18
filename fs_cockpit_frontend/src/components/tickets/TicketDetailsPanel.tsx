@@ -138,7 +138,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
 
   // Activity log state (preserved for future use)
-  const [activities, _setActivities] = useState<ActivityItem[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [_isLoadingActivities, _setIsLoadingActivities] = useState(false);
   const [_activitiesError, _setActivitiesError] = useState<string | null>(null);
 
@@ -189,7 +189,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
         }
       } catch (error) {
         // Silently handle ticket fetch errors (including abort errors)
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           // Request was aborted, no action needed
           return;
         }
@@ -233,7 +233,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
           }
         }
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           return; // Request aborted, no action needed
         }
         if (isMounted && !signal.aborted) {
@@ -270,7 +270,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
           setKnowledgeError(result.message || "No solution summary found");
         }
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           return; // Request aborted, no action needed
         }
         if (isMounted && !signal.aborted) {
@@ -305,7 +305,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
           setActionsError(result.message || "No recommendations available");
         }
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           return; // Request aborted, no action needed
         }
         if (isMounted && !signal.aborted) {
@@ -640,7 +640,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
           }
         }
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           return; // Request aborted, no action needed
         }
         if (isMounted && !signal.aborted) {
@@ -783,6 +783,30 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
     // TODO: Call remote action execution API
   }, []);
 
+  /**
+   * Handles adding a comment to the activity log
+   * @param {string} comment - The comment text to add
+   */
+  const handleAddComment = useCallback(
+    async (comment: string) => {
+      if (!comment.trim()) return;
+
+      // TODO: Call ServiceNow API to add comment to incident
+      console.log("Adding comment to incident:", ticket.id, comment);
+
+      // Optimistically add comment to local state
+      const newActivity: ActivityItem = {
+        user: "Current User", // TODO: Get from auth context
+        timestamp: "Just now",
+        message: comment,
+      };
+
+      // Update activities (this would normally come from API response)
+      setActivities((prev) => [newActivity, ...prev]);
+    },
+    [ticket.id]
+  );
+
   return (
     <div className="space-y-6 w-full p-6">
       {/* Incident Card with Tab Content Inside */}
@@ -809,6 +833,7 @@ const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
             onToggle={() => setActivityLogExpanded(!activityLogExpanded)}
             isLoading={false}
             error={null}
+            onAddComment={handleAddComment}
           />
         )}
 
