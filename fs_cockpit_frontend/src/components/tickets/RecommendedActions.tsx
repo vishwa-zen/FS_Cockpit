@@ -32,7 +32,7 @@ import React from "react";
 import { Card, CardContent } from "@ui/card";
 import { Badge } from "@ui/badge";
 import { Button } from "@ui/button";
-import { ZapIcon } from "lucide-react";
+import { ZapIcon } from "@components/icons";
 
 /**
  * Recommended action item structure

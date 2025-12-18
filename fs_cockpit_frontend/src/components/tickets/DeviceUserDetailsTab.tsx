@@ -35,7 +35,7 @@ import React from "react";
 import { DeviceUserDetailsPanel } from "./DeviceUserDetailsPanel";
 import { KnowledgePanel, KnowledgeItem } from "./KnowledgePanel";
 import { ActionsPanel, ActionItem } from "./ActionsPanel";
-import { Monitor } from "lucide-react";
+import { Monitor } from "@components/icons";
 
 /**
  * Device and user details data structure

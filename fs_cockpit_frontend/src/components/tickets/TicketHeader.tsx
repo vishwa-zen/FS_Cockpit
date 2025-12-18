@@ -25,7 +25,7 @@
  */
 import React from "react";
 import { Badge } from "@ui/badge";
-import { TicketIcon } from "lucide-react";
+import { TicketIcon } from "@components/icons";
 
 /**
  * Props for the TicketHeader component

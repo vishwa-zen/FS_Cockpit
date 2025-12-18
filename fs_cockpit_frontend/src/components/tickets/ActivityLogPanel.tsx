@@ -31,7 +31,7 @@
  */
 import React from "react";
 import { Card } from "@ui/card";
-import { MessageSquare, User } from "lucide-react";
+import { MessageSquare, User } from "@components/icons";
 
 /**
  * Individual activity item structure

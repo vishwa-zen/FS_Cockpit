@@ -21,7 +21,7 @@
  * />
  */
 import React from "react";
-import { LogOutIcon } from "lucide-react";
+import { LogOutIcon } from "@components/icons";
 
 /**
  * Props for the AppHeader component

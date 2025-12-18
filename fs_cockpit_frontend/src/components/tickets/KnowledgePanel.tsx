@@ -31,7 +31,7 @@
 import React from "react";
 import { Card } from "@ui/card";
 import { Badge } from "@ui/badge";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb } from "@components/icons";
 
 /**
  * Knowledge article item structure

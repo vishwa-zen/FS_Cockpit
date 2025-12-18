@@ -1,3 +1,4 @@
+// Custom SVG icons
 export { ActionsIcon } from './ActionsIcon';
 export { CockpitEmptyStateIcon } from './CockpitEmptyStateIcon';
 export { CopilotIcon } from './CopilotIcon';
@@ -8,3 +9,6 @@ export { KnowledgeIcon } from './KnowledgeIcon';
 export { MyTicketsIcon } from './MyTicketsIcon';
 export { RealTimeIcon } from './RealTimeIcon';
 export { UnifiedITIcon } from './UnifiedITIcon';
+
+// Lucide icons - centralized export
+export * from './lucide';

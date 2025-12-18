@@ -18,7 +18,7 @@ import {
   CheckCircle2,
   FileText,
   AlertTriangle,
-} from "lucide-react";
+} from "@components/icons";
 
 /**
  * Diagnostics data interface

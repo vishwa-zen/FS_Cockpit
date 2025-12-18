@@ -73,7 +73,7 @@ import {
   ShieldCheck,
   Package,
   CheckCircle,
-} from "lucide-react";
+} from "@components/icons";
 
 /**
  * Device and user details data structure from Intune and Azure AD

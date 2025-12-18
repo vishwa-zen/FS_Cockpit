@@ -44,7 +44,7 @@
  */
 
 import React from "react";
-import { MonitorIcon, ClockIcon } from "lucide-react";
+import { MonitorIcon, ClockIcon } from "@components/icons";
 import { Badge } from "@ui/badge";
 import { formatPriority, formatStatus } from "@lib/utils";
 

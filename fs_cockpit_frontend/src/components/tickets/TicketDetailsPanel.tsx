@@ -47,7 +47,7 @@
  * />
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { IncidentCard } from "./IncidentCard";
 import { ActivityLogCollapsible } from "./ActivityLogCollapsible";
 import { DiagnosticsPanel, DiagnosticsData } from "./DiagnosticsPanel";
@@ -103,7 +103,7 @@ interface TicketDetailsPanelProps {
  *
  * @param {TicketDetailsPanelProps} props - Component props containing ticket information
  */
-export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
+const TicketDetailsPanelComponent: React.FC<TicketDetailsPanelProps> = ({
   ticket: initialTicket,
 }) => {
   // Tab state management
@@ -148,6 +148,10 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
    * Includes cleanup to cancel in-flight requests when ticket changes
    */
   useEffect(() => {
+    // AbortController to cancel in-flight API requests on unmount/ticket change
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
     // Track if component is mounted to prevent state updates after unmount
     let isMounted = true;
 
@@ -175,7 +179,7 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
     const fetchTicketDetails = async () => {
       try {
         const result = await ticketsAPI.getIncidentDetails(initialTicket.id);
-        if (result.success && result.data && isMounted) {
+        if (result.success && result.data && isMounted && !signal.aborted) {
           const ticketData = {
             ...result.data,
             callerId: result.data.callerId ?? undefined,
@@ -184,7 +188,11 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
           setTicket(ticketData);
         }
       } catch (error) {
-        // Silently handle ticket fetch errors
+        // Silently handle ticket fetch errors (including abort errors)
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Request was aborted, no action needed
+          return;
+        }
       }
     };
 
@@ -203,7 +211,7 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
           initialTicket.device,
           initialTicket.callerId || undefined
         );
-        if (!isMounted) return;
+        if (!isMounted || signal.aborted) return;
         if (result.success && result.data) {
           setDeviceDetails(result.data);
 
@@ -225,7 +233,10 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
           }
         }
       } catch (error) {
-        if (isMounted) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request aborted, no action needed
+        }
+        if (isMounted && !signal.aborted) {
           setDeviceError("Device details temporarily unavailable");
           setDeviceDetails(null);
           // Stop diagnostics loading on error
@@ -244,7 +255,7 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
      * Provides AI-generated insights and recommendations
      */
     const fetchSolutionSummary = async () => {
-      if (!isMounted) return;
+      if (!isMounted || signal.aborted) return;
       setIsLoadingKnowledge(true);
       setKnowledgeError(null);
       try {
@@ -252,18 +263,21 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
           initialTicket.id,
           4
         );
-        if (!isMounted) return;
+        if (!isMounted || signal.aborted) return;
         if (result.success && result.data) {
           setSolutionSummary(result.data);
         } else {
           setKnowledgeError(result.message || "No solution summary found");
         }
       } catch (error) {
-        if (isMounted) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request aborted, no action needed
+        }
+        if (isMounted && !signal.aborted) {
           setKnowledgeError("Knowledge base temporarily unavailable");
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && !signal.aborted) {
           setIsLoadingKnowledge(false);
         }
       }
@@ -274,7 +288,7 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
      * Provides automated remediation suggestions
      */
     const fetchRemoteActions = async () => {
-      if (!isMounted) return;
+      if (!isMounted || signal.aborted) return;
       setIsLoadingActions(true);
       setActionsError(null);
       try {
@@ -284,18 +298,21 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
           initialTicket.callerId || undefined,
           3
         );
-        if (!isMounted) return;
+        if (!isMounted || signal.aborted) return;
         if (result.success && result.data) {
           setRemoteActions(result.data);
         } else {
           setActionsError(result.message || "No recommendations available");
         }
       } catch (error) {
-        if (isMounted) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request aborted, no action needed
+        }
+        if (isMounted && !signal.aborted) {
           setActionsError("Actions temporarily unavailable");
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && !signal.aborted) {
           setIsLoadingActions(false);
         }
       }
@@ -310,14 +327,14 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
       const finalDeviceName = deviceNameToUse || initialTicket.device;
 
       if (!finalDeviceName || finalDeviceName === "Not Available") {
-        if (isMounted) {
+        if (isMounted && !signal.aborted) {
           setIsLoadingDiagnostics(false);
           setDiagnosticsError("No device assigned to this ticket");
         }
         return;
       }
 
-      if (!isMounted) return;
+      if (!isMounted || signal.aborted) return;
       setIsLoadingDiagnostics(true);
       setDiagnosticsError(null);
 
@@ -617,19 +634,22 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
           });
         } else {
           // If API fails, use mock data to demonstrate UI
-          if (isMounted) {
+          if (isMounted && !signal.aborted) {
             const mockData = generateMockDiagnostics(initialTicket.id);
             setDiagnosticsData(mockData);
           }
         }
       } catch (error) {
-        if (isMounted) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request aborted, no action needed
+        }
+        if (isMounted && !signal.aborted) {
           // Use mock data on error to demonstrate UI
           const mockData = generateMockDiagnostics(initialTicket.id);
           setDiagnosticsData(mockData);
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && !signal.aborted) {
           setIsLoadingDiagnostics(false);
         }
       }
@@ -641,9 +661,10 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
     fetchSolutionSummary();
     fetchRemoteActions();
 
-    // Cleanup function: prevent state updates after component unmounts or ticket changes
+    // Cleanup function: abort in-flight requests and prevent state updates
     return () => {
       isMounted = false;
+      abortController.abort(); // Cancel all pending API requests
     };
   }, [initialTicket]);
 
@@ -843,3 +864,5 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
     </div>
   );
 };
+
+export const TicketDetailsPanel = memo(TicketDetailsPanelComponent);

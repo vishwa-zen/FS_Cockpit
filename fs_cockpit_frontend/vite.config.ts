@@ -64,20 +64,68 @@ export default defineConfig(({ mode }) => {
       target: "es2020",
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ["react", "react-dom", "react-router-dom"],
-            msal: ["@azure/msal-browser", "@azure/msal-react"],
-            ui: [
-              "@radix-ui/react-avatar",
-              "@radix-ui/react-progress",
-              "@radix-ui/react-scroll-area",
-              "@radix-ui/react-tabs",
-            ],
-            icons: ["lucide-react"],
+          manualChunks: (id) => {
+            // Core React vendor bundle
+            if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) {
+              return "vendor-react";
+            }
+            // React Router
+            if (id.includes("node_modules/react-router-dom")) {
+              return "vendor-router";
+            }
+            // MSAL authentication
+            if (id.includes("node_modules/@azure/msal")) {
+              return "msal";
+            }
+            // Radix UI components (all together for shared dependencies)
+            if (id.includes("node_modules/@radix-ui")) {
+              return "radix-ui";
+            }
+            // Lucide icons
+            if (id.includes("node_modules/lucide-react")) {
+              return "icons";
+            }
+            // Axios HTTP client
+            if (id.includes("node_modules/axios")) {
+              return "vendor-axios";
+            }
+            // Utility libraries (clsx, tailwind-merge, class-variance-authority)
+            if (
+              id.includes("node_modules/clsx") ||
+              id.includes("node_modules/tailwind-merge") ||
+              id.includes("node_modules/class-variance-authority")
+            ) {
+              return "utils";
+            }
+            // Application pages
+            if (id.includes("/src/pages/")) {
+              return "pages";
+            }
+            // Ticket components (largest component group)
+            if (id.includes("/src/components/tickets/")) {
+              return "components-tickets";
+            }
+            // Other components
+            if (id.includes("/src/components/")) {
+              return "components";
+            }
+            // Services (API, etc.)
+            if (id.includes("/src/services/")) {
+              return "services";
+            }
+            // Context providers
+            if (id.includes("/src/context/")) {
+              return "context";
+            }
+            // Other vendor packages
+            if (id.includes("node_modules")) {
+              return "vendor-misc";
+            }
           },
         },
       },
       chunkSizeWarningLimit: 1000,
+      cssCodeSplit: true,
     },
   };
 });

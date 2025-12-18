@@ -33,7 +33,7 @@
  */
 
 import { useMsal } from "@azure/msal-react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@components/icons";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { popupLoginRequest } from "@config/msalConfig";

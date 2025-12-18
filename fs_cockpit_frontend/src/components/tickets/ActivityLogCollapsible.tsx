@@ -28,7 +28,7 @@
  * ```
  */
 import React from "react";
-import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquare } from "@components/icons";
 import { ActivityItem } from "./ActivityLogPanel";
 import { Avatar } from "@ui/avatar";
 

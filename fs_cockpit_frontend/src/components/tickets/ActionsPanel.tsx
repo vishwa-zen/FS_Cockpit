@@ -34,7 +34,7 @@ import React from "react";
 import { Card } from "@ui/card";
 import { Badge } from "@ui/badge";
 import { Button } from "@ui/button";
-import { Zap } from "lucide-react";
+import { Zap } from "@components/icons";
 
 /**
  * Remote action item structure

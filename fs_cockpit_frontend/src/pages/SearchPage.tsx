@@ -41,8 +41,8 @@ import {
   TicketIcon,
   LayoutDashboardIcon,
   SearchIcon,
-} from "lucide-react";
-import React, { useState, useMemo, useCallback } from "react";
+} from "@components/icons";
+import React, { useState, useMemo, useCallback, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@hooks/useAuth";
 import { useTickets } from "@context/TicketsContext";
@@ -69,7 +69,7 @@ import { ROUTES, getIssueRoute, DEMO_CREDENTIALS } from "@constants";
  *
  * @returns {JSX.Element} Search page with unified search interface
  */
-export const SearchPage = (): JSX.Element => {
+const SearchPageComponent = (): JSX.Element => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("INC0012");
@@ -137,6 +137,27 @@ export const SearchPage = (): JSX.Element => {
   const displayTickets = useMemo(() => {
     return searchResults.length > 0 ? searchResults : myTickets;
   }, [searchResults, myTickets]);
+
+  const handleClearSearch = useCallback(() => {
+    clearSearchResults();
+    navigate(ROUTES.SEARCH);
+  }, [clearSearchResults, navigate]);
+
+  const handleSearchQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchQuery(e.target.value);
+    },
+    []
+  );
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        handleSearch();
+      }
+    },
+    [handleSearch]
+  );
 
   return (
     <section className="relative w-full h-screen flex flex-col bg-[linear-gradient(135deg,rgba(248,250,252,1)_0%,rgba(239,246,255,0.3)_50%,rgba(241,245,249,1)_100%),linear-gradient(0deg,rgba(255,255,255,1)_0%,rgba(255,255,255,1)_100%)]">
@@ -258,10 +279,7 @@ export const SearchPage = (): JSX.Element => {
                               </CardTitle>
                             </div>
                             <button
-                              onClick={() => {
-                                clearSearchResults();
-                                navigate(ROUTES.SEARCH);
-                              }}
+                              onClick={handleClearSearch}
                               className="text-xs text-brand-primary hover:underline"
                             >
                               Clear
@@ -351,8 +369,8 @@ export const SearchPage = (): JSX.Element => {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  onChange={handleSearchQueryChange}
+                  onKeyDown={handleSearchKeyDown}
                   placeholder={`Enter ${searchType.toLowerCase()} name or number...`}
                   className="flex-1 bg-transparent border-0 outline-none [font-family:'Arial-Regular',Helvetica] font-normal text-gray-700 text-sm leading-5"
                   aria-label={`Search by ${searchType.toLowerCase()}`}
@@ -452,3 +470,5 @@ export const SearchPage = (): JSX.Element => {
     </section>
   );
 };
+
+export const SearchPage = memo(SearchPageComponent);

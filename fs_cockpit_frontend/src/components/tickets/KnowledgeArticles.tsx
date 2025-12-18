@@ -26,7 +26,7 @@
 import React from "react";
 import { Card, CardContent } from "@ui/card";
 import { Badge } from "@ui/badge";
-import { LightbulbIcon } from "lucide-react";
+import { LightbulbIcon } from "@components/icons";
 
 /**
  * Knowledge article item structure

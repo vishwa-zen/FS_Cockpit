@@ -54,7 +54,7 @@ import {
   Network,
   Globe,
   CheckCircle,
-} from "lucide-react";
+} from "@components/icons";
 import {
   Tooltip,
   TooltipTrigger,

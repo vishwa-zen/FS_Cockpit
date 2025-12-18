@@ -32,7 +32,7 @@
  * />
  */
 import React from "react";
-import { SearchIcon, ChevronDownIcon } from "lucide-react";
+import { SearchIcon, ChevronDownIcon } from "@components/icons";
 import { TicketsList } from "@components/tickets/TicketsList";
 
 /**

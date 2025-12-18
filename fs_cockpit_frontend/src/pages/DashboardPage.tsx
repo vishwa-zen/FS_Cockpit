@@ -52,9 +52,9 @@ import {
   ServerCrash,
   SendIcon,
   Leaf,
-} from "lucide-react";
+} from "@components/icons";
 import { TicketsList, TicketDetailsPanel } from "@components/tickets";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@hooks/useAuth";
 import { useTickets } from "@context/TicketsContext";
@@ -85,7 +85,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/tabs";
  *
  * @returns {JSX.Element} Dashboard page with tabbed interface
  */
-export const DashboardPage = (): JSX.Element => {
+const DashboardPageComponent = (): JSX.Element => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const { user, logout } = useAuth();
@@ -539,6 +539,56 @@ export const DashboardPage = (): JSX.Element => {
     setShowSortDropdown(false);
   }, []);
 
+  const handleUserLogout = useCallback(async () => {
+    setShowUserMenu(false);
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (error) {
+      // Silently handle logout errors
+    } finally {
+      navigate(ROUTES.LOGIN);
+    }
+  }, [logout, navigate]);
+
+  const handleClearSearch = useCallback(() => {
+    clearSearchResults();
+    navigate(ROUTES.HOME);
+  }, [clearSearchResults, navigate]);
+
+  const handleRetry = useCallback(() => {
+    setSelectedTicketId(null);
+    navigate(ROUTES.HOME);
+    window.location.reload();
+  }, [setSelectedTicketId, navigate]);
+
+  const handleBackToTickets = useCallback(() => {
+    navigate(ROUTES.HOME);
+  }, [navigate]);
+
+  const handleCopilotMessageChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCopilotMessage(e.target.value);
+    },
+    []
+  );
+
+  const handleCopilotKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        handleCopilotSend();
+      }
+    },
+    [handleCopilotSend]
+  );
+
+  const handleMyTicketsSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setMyTicketsSearchQuery(e.target.value);
+    },
+    []
+  );
+
   return (
     <section className="relative w-full h-screen flex flex-col bg-surface-gray">
       {/* Mobile Back Button - Shows when ticket is selected on mobile */}
@@ -610,17 +660,7 @@ export const DashboardPage = (): JSX.Element => {
               </div>
               <button
                 type="button"
-                onClick={async () => {
-                  setShowUserMenu(false);
-                  setIsLoggingOut(true);
-                  try {
-                    await logout();
-                  } catch (error) {
-                    // Silently handle logout errors
-                  } finally {
-                    navigate(ROUTES.LOGIN);
-                  }
-                }}
+                onClick={handleUserLogout}
                 className="w-full px-3 sm:px-4 py-2 text-left hover:bg-surface-gray transition-colors flex items-center gap-2 cursor-pointer border-0 bg-transparent"
               >
                 <LogOutIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-text-secondary" />
@@ -689,10 +729,7 @@ export const DashboardPage = (): JSX.Element => {
                             </CardTitle>
                           </div>
                           <button
-                            onClick={() => {
-                              clearSearchResults();
-                              navigate(ROUTES.HOME);
-                            }}
+                            onClick={handleClearSearch}
                             className="text-xs text-brand-primary hover:underline font-sans"
                             aria-label="Clear search results"
                           >
@@ -961,8 +998,8 @@ export const DashboardPage = (): JSX.Element => {
                 <div className="flex-1 flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border-[0.67px] border-[#e1e8f0] shadow-[0px_1px_2px_-1px_#0000001a,0px_1px_3px_#0000001a]">
                   <Input
                     value={copilotMessage}
-                    onChange={(e) => setCopilotMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCopilotSend()}
+                    onChange={handleCopilotMessageChange}
+                    onKeyDown={handleCopilotKeyDown}
                     placeholder="Type ticket number, device name, username, or ask for 'my tickets'..."
                     className="border-0 shadow-none p-0 h-auto [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-xs placeholder:text-[#717182] focus-visible:ring-0"
                     aria-label="Message Copilot"
@@ -985,7 +1022,7 @@ export const DashboardPage = (): JSX.Element => {
                     <SearchIcon className="w-5 h-5 text-[#61738D]" />
                     <Input
                       value={myTicketsSearchQuery}
-                      onChange={(e) => setMyTicketsSearchQuery(e.target.value)}
+                      onChange={handleMyTicketsSearchChange}
                       placeholder="Search my tickets by number, title, device..."
                       className="border-0 shadow-none p-0 h-auto bg-transparent [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-sm placeholder:text-[#717182] focus-visible:ring-0"
                     />
@@ -1079,11 +1116,7 @@ export const DashboardPage = (): JSX.Element => {
                         </p>
                       </div>
                       <Button
-                        onClick={() => {
-                          setSelectedTicketId(null);
-                          navigate(ROUTES.HOME);
-                          window.location.reload();
-                        }}
+                        onClick={handleRetry}
                         className="h-auto px-6 py-3 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -1113,9 +1146,7 @@ export const DashboardPage = (): JSX.Element => {
                       </p>
                     </div>
                     <Button
-                      onClick={() => {
-                        navigate(ROUTES.HOME);
-                      }}
+                      onClick={handleBackToTickets}
                       className="h-auto px-6 py-3 rounded-lg bg-[#155cfb] hover:bg-[#1250dc] gap-2"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -1150,3 +1181,5 @@ export const DashboardPage = (): JSX.Element => {
     </section>
   );
 };
+
+export const DashboardPage = memo(DashboardPageComponent);

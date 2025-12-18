@@ -37,7 +37,7 @@ import { useAuth } from "@hooks/useAuth";
 import { useTickets } from "@context";
 import { AppHeader, AppSidebar, AppFooter } from "@components/layout";
 import { TicketDetailsPanel } from "@components/tickets";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@components/icons";
 import { ROUTES, getIssueRoute } from "@constants";
 
 /**

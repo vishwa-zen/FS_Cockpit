@@ -18,7 +18,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { InfoIcon, ChevronUp } from "lucide-react";
+import { InfoIcon, ChevronUp } from "@components/icons";
 import { Button } from "@ui/button";
 import { healthAPI, ServiceMetrics } from "@services/api";
 
