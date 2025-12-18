@@ -65,25 +65,36 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: (id) => {
-            // Core React vendor bundle
-            if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) {
+            // Core React vendor bundle - must include scheduler and other React internals
+            if (
+              id.includes("node_modules/react") ||
+              id.includes("node_modules/react-dom") ||
+              id.includes("node_modules/scheduler")
+            ) {
               return "vendor-react";
             }
-            // React Router
-            if (id.includes("node_modules/react-router-dom")) {
-              return "vendor-router";
+            // React Router - keep with React ecosystem
+            if (
+              id.includes("node_modules/react-router") ||
+              id.includes("node_modules/@remix-run")
+            ) {
+              return "vendor-react";
             }
             // MSAL authentication
             if (id.includes("node_modules/@azure/msal")) {
               return "msal";
             }
-            // Radix UI components (all together for shared dependencies)
-            if (id.includes("node_modules/@radix-ui")) {
-              return "radix-ui";
+            // Radix UI components - keep all together with React
+            if (
+              id.includes("node_modules/@radix-ui") ||
+              id.includes("node_modules/aria-hidden") ||
+              id.includes("node_modules/react-remove-scroll")
+            ) {
+              return "vendor-react";
             }
-            // Lucide icons
+            // Lucide icons - React-dependent
             if (id.includes("node_modules/lucide-react")) {
-              return "icons";
+              return "vendor-react";
             }
             // Axios HTTP client
             if (id.includes("node_modules/axios")) {
@@ -117,7 +128,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes("/src/context/")) {
               return "context";
             }
-            // Other vendor packages
+            // Other vendor packages - but avoid React dependencies
             if (id.includes("node_modules")) {
               return "vendor-misc";
             }
