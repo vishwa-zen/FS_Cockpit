@@ -54,6 +54,7 @@ interface Ticket {
   time?: string;
   device?: string;
   priority?: string;
+  severity?: string;
   priorityColor?: string;
   callerId?: string;
   callerName?: string;

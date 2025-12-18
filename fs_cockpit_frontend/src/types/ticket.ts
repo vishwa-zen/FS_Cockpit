@@ -76,6 +76,8 @@ export interface Ticket {
   description?: string;
   /** Priority level */
   priority: TicketPriority;
+  /** Severity level (numeric value) */
+  severity?: string;
   /** Current status */
   status: TicketStatus;
   /** Assigned to user */

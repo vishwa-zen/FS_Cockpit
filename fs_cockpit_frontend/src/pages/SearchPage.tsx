@@ -42,7 +42,7 @@ import {
   LayoutDashboardIcon,
   SearchIcon,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@hooks/useAuth";
 import { useTickets } from "@context/TicketsContext";
@@ -90,20 +90,23 @@ export const SearchPage = (): JSX.Element => {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   // useTabs state from TicketsContext
 
-  const handleTicketClick = (ticketId: string) => {
-    setSelectedTicketId(ticketId);
-    navigate(getIssueRoute(ticketId));
-  };
+  const handleTicketClick = useCallback(
+    (ticketId: string) => {
+      setSelectedTicketId(ticketId);
+      navigate(getIssueRoute(ticketId));
+    },
+    [navigate, setSelectedTicketId]
+  );
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (searchQuery.trim()) {
       await searchTickets(searchQuery, searchType);
     } else {
       clearSearchResults();
     }
-  };
+  }, [searchQuery, searchType, searchTickets, clearSearchResults]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await logout();
       // logout() handles navigation, so no need to navigate here
@@ -112,7 +115,28 @@ export const SearchPage = (): JSX.Element => {
       // Fallback navigation if logout fails
       navigate(ROUTES.LOGIN);
     }
-  };
+  }, [logout, navigate]);
+
+  const toggleUserMenu = useCallback(() => {
+    setShowUserMenu((prev) => !prev);
+  }, []);
+
+  const toggleSearchDropdown = useCallback(() => {
+    setShowSearchDropdown((prev) => !prev);
+  }, []);
+
+  const handleSearchTypeSelect = useCallback(
+    (type: "User" | "Device" | "Ticket") => {
+      setSearchType(type);
+      setShowSearchDropdown(false);
+    },
+    []
+  );
+
+  // Memoize displayTickets to prevent re-computation on every render
+  const displayTickets = useMemo(() => {
+    return searchResults.length > 0 ? searchResults : myTickets;
+  }, [searchResults, myTickets]);
 
   return (
     <section className="relative w-full h-screen flex flex-col bg-[linear-gradient(135deg,rgba(248,250,252,1)_0%,rgba(239,246,255,0.3)_50%,rgba(241,245,249,1)_100%),linear-gradient(0deg,rgba(255,255,255,1)_0%,rgba(255,255,255,1)_100%)]">
@@ -137,8 +161,11 @@ export const SearchPage = (): JSX.Element => {
               {user?.email || user?.username || DEMO_CREDENTIALS.EMAIL}
             </div>
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={toggleUserMenu}
               className="relative"
+              aria-label="User menu"
+              aria-expanded={showUserMenu}
+              aria-haspopup="true"
             >
               <Avatar className="w-8 h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
                 <AvatarFallback className="bg-transparent text-white text-xs [font-family:'Arial-Regular',Helvetica]">
@@ -328,11 +355,15 @@ export const SearchPage = (): JSX.Element => {
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   placeholder={`Enter ${searchType.toLowerCase()} name or number...`}
                   className="flex-1 bg-transparent border-0 outline-none [font-family:'Arial-Regular',Helvetica] font-normal text-gray-700 text-sm leading-5"
+                  aria-label={`Search by ${searchType.toLowerCase()}`}
                 />
                 <div className="relative">
                   <Button
-                    onClick={() => setShowSearchDropdown(!showSearchDropdown)}
+                    onClick={toggleSearchDropdown}
                     className="h-auto px-4 py-2 rounded-[10px] shadow-[0px_6px_18px_#1f6feb1f] bg-[linear-gradient(0deg,rgba(31,111,235,1)_0%,rgba(74,163,255,1)_100%)] hover:opacity-90"
+                    aria-label="Select search type"
+                    aria-expanded={showSearchDropdown}
+                    aria-haspopup="true"
                   >
                     <span className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[13.3px]">
                       {searchType}
@@ -345,10 +376,7 @@ export const SearchPage = (): JSX.Element => {
                       {(["User", "Device", "Ticket"] as const).map((type) => (
                         <button
                           key={type}
-                          onClick={() => {
-                            setSearchType(type);
-                            setShowSearchDropdown(false);
-                          }}
+                          onClick={() => handleSearchTypeSelect(type)}
                           className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
                             searchType === type
                               ? "bg-[#EFF6FF] text-[#3B82F6]"
@@ -367,6 +395,7 @@ export const SearchPage = (): JSX.Element => {
               <button
                 onClick={handleSearch}
                 className="w-12 h-12 flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-colors shadow-lg"
+                aria-label="Search"
               >
                 <SearchIcon className="w-5 h-5 text-white" />
               </button>

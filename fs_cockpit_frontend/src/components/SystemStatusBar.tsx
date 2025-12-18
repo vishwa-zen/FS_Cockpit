@@ -17,7 +17,7 @@
  * @requires services/api - Health check API
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { InfoIcon, ChevronUp } from "lucide-react";
 import { Button } from "@ui/button";
 import { healthAPI, ServiceMetrics } from "@services/api";
@@ -74,6 +74,7 @@ export const SystemStatusBar = () => {
     };
   } | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+  const metricsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Fetch Health Status for All Services
@@ -168,11 +169,26 @@ export const SystemStatusBar = () => {
     fetchHealthStatus();
   }, [fetchHealthStatus]);
 
-  // Fetch metrics when expanded
+  // Fetch metrics when expanded (with 300ms debounce)
   useEffect(() => {
     if (isExpanded) {
-      fetchMetrics();
+      // Clear any existing timeout
+      if (metricsTimeoutRef.current) {
+        clearTimeout(metricsTimeoutRef.current);
+      }
+
+      // Set new timeout to debounce metrics fetch
+      metricsTimeoutRef.current = setTimeout(() => {
+        fetchMetrics();
+      }, 300);
     }
+
+    // Cleanup timeout on unmount or when isExpanded changes
+    return () => {
+      if (metricsTimeoutRef.current) {
+        clearTimeout(metricsTimeoutRef.current);
+      }
+    };
   }, [isExpanded, fetchMetrics]);
 
   // Poll every 2 hours (7200000 milliseconds)

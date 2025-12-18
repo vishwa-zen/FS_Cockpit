@@ -47,7 +47,7 @@
  * />
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { IncidentCard } from "./IncidentCard";
 import { ActivityLogCollapsible } from "./ActivityLogCollapsible";
 import { DiagnosticsPanel, DiagnosticsData } from "./DiagnosticsPanel";
@@ -652,104 +652,115 @@ export const TicketDetailsPanel: React.FC<TicketDetailsPanelProps> = ({
    * Maps API response to component-friendly format
    * Converts text confidence levels to numeric percentages
    */
-  const knowledgeItems: KnowledgeItem[] =
-    solutionSummary?.summary_points.map((point, index) => {
-      // Convert text confidence to numeric percentage
-      let confidenceScore: string | undefined;
-      const confidence = solutionSummary.confidence?.toLowerCase();
-      if (confidence === "high") confidenceScore = "85";
-      else if (confidence === "medium") confidenceScore = "70";
-      else if (confidence === "low") confidenceScore = "50";
+  const knowledgeItems: KnowledgeItem[] = useMemo(
+    () =>
+      solutionSummary?.summary_points.map((point, index) => {
+        // Convert text confidence to numeric percentage
+        let confidenceScore: string | undefined;
+        const confidence = solutionSummary.confidence?.toLowerCase();
+        if (confidence === "high") confidenceScore = "85";
+        else if (confidence === "medium") confidenceScore = "70";
+        else if (confidence === "low") confidenceScore = "50";
 
-      return {
-        title: point,
-        description:
-          solutionSummary.message ||
-          "Analysis based on incident data and historical patterns",
-        severity: confidenceScore,
-        source: solutionSummary.source,
-      };
-    }) || [];
+        return {
+          title: point,
+          description:
+            solutionSummary.message ||
+            "Analysis based on incident data and historical patterns",
+          severity: confidenceScore,
+          source: solutionSummary.source,
+        };
+      }) || [],
+    [solutionSummary]
+  );
 
   /**
    * Transform remote actions to action items for display
    * Maps API response fields to component interface
    * Determines priority based on action status
    */
-  const actionItems: ActionItem[] = remoteActions.map((action) => ({
-    title: action.actionName || action.actionType || "Unknown Action",
-    priority:
-      action.status?.toLowerCase() === "success"
-        ? "low"
-        : action.status?.toLowerCase() === "failed"
-        ? "high"
-        : "medium",
-    description:
-      action.result?.purpose ||
-      action.result?.outputs ||
-      "No description available",
-    duration: "Not specified",
-    confidence: action.result?.status_details || "Pending analysis",
-  }));
+  const actionItems: ActionItem[] = useMemo(
+    () =>
+      remoteActions.map((action) => ({
+        title: action.actionName || action.actionType || "Unknown Action",
+        priority:
+          action.status?.toLowerCase() === "success"
+            ? "low"
+            : action.status?.toLowerCase() === "failed"
+            ? "high"
+            : "medium",
+        description:
+          action.result?.purpose ||
+          action.result?.outputs ||
+          "No description available",
+        duration: "Not specified",
+        confidence: action.result?.status_details || "Pending analysis",
+      })),
+    [remoteActions]
+  );
 
   /**
    * Transform device details to user-friendly format
    * Combines ServiceNow and Intune data
    * Calculates memory and disk usage percentages
    */
-  const deviceUserDetails: DeviceUserDetails | null = deviceDetails
-    ? {
-        userName: ticket.callerName || "Not available",
-        userId: ticket.callerId || "Not available",
-        emailId: deviceDetails.userPrincipalName || "Not available",
-        complianceState: deviceDetails.complianceState || "Unknown",
-        deviceName:
-          deviceDetails.deviceName || ticket.device || "Not available",
-        operatingSystem: deviceDetails.operatingSystem || "Not detected",
-        osVersion: deviceDetails.osVersion,
-        serialNumber: deviceDetails.serialNumber || "Not available",
-        lastSyncDateTime: deviceDetails.lastSyncDateTime
-          ? new Date(deviceDetails.lastSyncDateTime).toLocaleString()
-          : "Never synced",
-        managedDeviceOwnerType:
-          deviceDetails.managedDeviceOwnerType || "Not specified",
-        enrolledDateTime: deviceDetails.enrolledDateTime
-          ? new Date(deviceDetails.enrolledDateTime).toLocaleString()
-          : undefined,
-        memoryUsage: deviceDetails.totalStorageSpaceInBytes
-          ? `${(
-              ((deviceDetails.totalStorageSpaceInBytes -
-                (deviceDetails.freeStorageSpaceInBytes || 0)) /
-                deviceDetails.totalStorageSpaceInBytes) *
-              100
-            ).toFixed(0)}%`
-          : undefined,
-        diskUsage:
-          deviceDetails.freeStorageSpaceInBytes &&
-          deviceDetails.totalStorageSpaceInBytes
-            ? `${(
-                ((deviceDetails.totalStorageSpaceInBytes -
-                  deviceDetails.freeStorageSpaceInBytes) /
-                  deviceDetails.totalStorageSpaceInBytes) *
-                100
-              ).toFixed(0)}%`
-            : undefined,
-        manufacturer: deviceDetails.manufacturer,
-        model: deviceDetails.model,
-        ipAddress: deviceDetails.ipAddress,
-        macAddress: deviceDetails.macAddress,
-        connectionType: deviceDetails.connectionType,
-      }
-    : null;
+  const deviceUserDetails: DeviceUserDetails | null = useMemo(
+    () =>
+      deviceDetails
+        ? {
+            userName: ticket.callerName || "Not available",
+            userId: ticket.callerId || "Not available",
+            emailId: deviceDetails.userPrincipalName || "Not available",
+            complianceState: deviceDetails.complianceState || "Unknown",
+            deviceName:
+              deviceDetails.deviceName || ticket.device || "Not available",
+            operatingSystem: deviceDetails.operatingSystem || "Not detected",
+            osVersion: deviceDetails.osVersion,
+            serialNumber: deviceDetails.serialNumber || "Not available",
+            lastSyncDateTime: deviceDetails.lastSyncDateTime
+              ? new Date(deviceDetails.lastSyncDateTime).toLocaleString()
+              : "Never synced",
+            managedDeviceOwnerType:
+              deviceDetails.managedDeviceOwnerType || "Not specified",
+            enrolledDateTime: deviceDetails.enrolledDateTime
+              ? new Date(deviceDetails.enrolledDateTime).toLocaleString()
+              : undefined,
+            memoryUsage: deviceDetails.totalStorageSpaceInBytes
+              ? `${(
+                  ((deviceDetails.totalStorageSpaceInBytes -
+                    (deviceDetails.freeStorageSpaceInBytes || 0)) /
+                    deviceDetails.totalStorageSpaceInBytes) *
+                  100
+                ).toFixed(0)}%`
+              : undefined,
+            diskUsage:
+              deviceDetails.freeStorageSpaceInBytes &&
+              deviceDetails.totalStorageSpaceInBytes
+                ? `${(
+                    ((deviceDetails.totalStorageSpaceInBytes -
+                      deviceDetails.freeStorageSpaceInBytes) /
+                      deviceDetails.totalStorageSpaceInBytes) *
+                    100
+                  ).toFixed(0)}%`
+                : undefined,
+            manufacturer: deviceDetails.manufacturer,
+            model: deviceDetails.model,
+            ipAddress: deviceDetails.ipAddress,
+            macAddress: deviceDetails.macAddress,
+            connectionType: deviceDetails.connectionType,
+          }
+        : null,
+    [deviceDetails, ticket.callerName, ticket.callerId, ticket.device]
+  );
 
   /**
    * Handle action execution button click
    * TODO: Implement actual action execution logic with NextThink API
    * @param {ActionItem} action - The action to execute
    */
-  const handleExecuteAction = (action: ActionItem) => {
+  const handleExecuteAction = useCallback((action: ActionItem) => {
     // TODO: Call remote action execution API
-  };
+  }, []);
 
   return (
     <div className="space-y-6 w-full p-6">

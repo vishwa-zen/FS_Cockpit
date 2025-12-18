@@ -92,7 +92,9 @@ export const DashboardPage = (): JSX.Element => {
 
   const [_searchQuery, _setSearchQuery] = useState("");
   const [myTicketsSearchQuery, setMyTicketsSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"ticket" | "priority" | "severity">("ticket");
+  const [sortBy, setSortBy] = useState<"ticket" | "priority" | "severity">(
+    "ticket"
+  );
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const {
     myTickets,
@@ -114,19 +116,26 @@ export const DashboardPage = (): JSX.Element => {
   );
   const [_showSearchDropdown, _setShowSearchDropdown] = useState(false);
   const [copilotMessage, setCopilotMessage] = useState("");
+
+  // Memoize initial Copilot messages to prevent re-creation on every render
+  const initialCopilotMessages = useMemo(
+    () => [
+      {
+        role: "assistant" as const,
+        content:
+          "👋 Welcome to FS Cockpit! I'm here to help you with diagnostics. How can I assist you today?",
+      },
+    ],
+    []
+  );
+
   const [copilotMessages, setCopilotMessages] = useState<
     Array<{
       role: "user" | "assistant";
       content: string | JSX.Element;
       ticketId?: string;
     }>
-  >([
-    {
-      role: "assistant",
-      content:
-        "👋 Welcome to FS Cockpit! I'm here to help you with diagnostics. How can I assist you today?",
-    },
-  ]);
+  >(initialCopilotMessages);
   const [copilotSelectedTicketId, setCopilotSelectedTicketId] = useState<
     string | null
   >(null);
@@ -216,7 +225,7 @@ export const DashboardPage = (): JSX.Element => {
     }
   }, [id, filteredAndSortedTickets, isLoading, navigate]);
 
-  const handleCopilotTicketClick = (ticketId: string) => {
+  const handleCopilotTicketClick = useCallback((ticketId: string) => {
     setCopilotSelectedTicketId(ticketId);
     setCopilotMessages((prev) => [
       ...prev,
@@ -225,9 +234,9 @@ export const DashboardPage = (): JSX.Element => {
         content: `Great! I've loaded the details for **${ticketId}**. You can see the full diagnostics on the right side. How can I help you with this ticket?`,
       },
     ]);
-  };
+  }, []);
 
-  const handleCopilotSend = () => {
+  const handleCopilotSend = useCallback(() => {
     if (copilotMessage.trim()) {
       const userMessage = copilotMessage.trim().toLowerCase();
       const originalMessage = copilotMessage.trim();
@@ -487,16 +496,55 @@ export const DashboardPage = (): JSX.Element => {
         }, 500);
       }
     }
-  };
+  }, [
+    copilotMessage,
+    myTickets,
+    searchResults,
+    searchTickets,
+    handleCopilotTicketClick,
+  ]);
+
+  const handleBackClick = useCallback(() => {
+    navigate(ROUTES.HOME);
+  }, [navigate]);
+
+  const toggleUserMenu = useCallback(() => {
+    setShowUserMenu((prev) => !prev);
+  }, []);
+
+  const closeUserMenu = useCallback(() => {
+    setShowUserMenu(false);
+  }, []);
+
+  const toggleSortDropdown = useCallback(() => {
+    setShowSortDropdown((prev) => !prev);
+  }, []);
+
+  const closeSortDropdown = useCallback(() => {
+    setShowSortDropdown(false);
+  }, []);
+
+  const handleSortByTicket = useCallback(() => {
+    setSortBy("ticket");
+    setShowSortDropdown(false);
+  }, []);
+
+  const handleSortByPriority = useCallback(() => {
+    setSortBy("priority");
+    setShowSortDropdown(false);
+  }, []);
+
+  const handleSortBySeverity = useCallback(() => {
+    setSortBy("severity");
+    setShowSortDropdown(false);
+  }, []);
 
   return (
     <section className="relative w-full h-screen flex flex-col bg-surface-gray">
       {/* Mobile Back Button - Shows when ticket is selected on mobile */}
       {selectedTicketId && (
         <button
-          onClick={() => {
-            navigate(ROUTES.HOME);
-          }}
+          onClick={handleBackClick}
           className="md:hidden fixed top-3 left-3 z-[60] bg-white shadow-lg rounded-full p-2.5 hover:bg-gray-50 transition-colors border border-gray-200"
           aria-label="Back to ticket list"
         >
@@ -525,8 +573,11 @@ export const DashboardPage = (): JSX.Element => {
           </span>
 
           <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
+            onClick={toggleUserMenu}
             className="relative focus:outline-none z-50"
+            aria-label="User menu"
+            aria-expanded={showUserMenu}
+            aria-haspopup="true"
           >
             <Avatar className="w-7 h-7 sm:w-8 sm:h-8 bg-[linear-gradient(135deg,rgba(43,127,255,1)_0%,rgba(173,70,255,1)_100%)] cursor-pointer hover:opacity-80 transition-opacity">
               <AvatarFallback className="[font-family:'Arial-Regular',Helvetica] font-normal text-white text-[10px] sm:text-xs bg-transparent">
@@ -546,7 +597,7 @@ export const DashboardPage = (): JSX.Element => {
             <div
               className="fixed inset-0 z-40"
               aria-hidden="true"
-              onClick={() => setShowUserMenu(false)}
+              onClick={closeUserMenu}
             />
             <div className="fixed top-[60px] sm:top-[66px] md:top-[73px] right-3 sm:right-4 md:right-6 lg:right-8 w-44 sm:w-48 bg-white rounded-lg shadow-lg border border-border py-2 z-50">
               <div className="px-3 sm:px-4 py-2 border-b border-border">
@@ -643,13 +694,18 @@ export const DashboardPage = (): JSX.Element => {
                               navigate(ROUTES.HOME);
                             }}
                             className="text-xs text-brand-primary hover:underline font-sans"
+                            aria-label="Clear search results"
                           >
                             Clear
                           </button>
                         </div>
                         {isSearching ? (
                           <CardDescription className="[font-family:'Arial-Regular',Helvetica] font-normal text-text-secondary text-xs leading-4 flex items-center gap-1">
-                            <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                            <span
+                              className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full"
+                              role="status"
+                              aria-label="Searching"
+                            />
                             Searching...
                           </CardDescription>
                         ) : (
@@ -670,27 +726,29 @@ export const DashboardPage = (): JSX.Element => {
                           </div>
                           <div className="relative">
                             <button
-                              onClick={() =>
-                                setShowSortDropdown(!showSortDropdown)
-                              }
+                              onClick={toggleSortDropdown}
                               className="text-xs text-brand-secondary hover:underline font-sans flex items-center gap-1"
+                              aria-label="Sort tickets"
+                              aria-expanded={showSortDropdown}
+                              aria-haspopup="true"
                             >
                               Sort:{" "}
-                              {sortBy === "ticket" ? "Ticket #" : sortBy === "priority" ? "Priority" : "Severity"}
+                              {sortBy === "ticket"
+                                ? "Ticket #"
+                                : sortBy === "priority"
+                                ? "Priority"
+                                : "Severity"}
                               <ChevronDownIcon className="w-3 h-3" />
                             </button>
                             {showSortDropdown && (
                               <>
                                 <div
                                   className="fixed inset-0 z-40"
-                                  onClick={() => setShowSortDropdown(false)}
+                                  onClick={closeSortDropdown}
                                 />
                                 <div className="absolute top-full right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-[#e1e8f0] py-1 z-50">
                                   <button
-                                    onClick={() => {
-                                      setSortBy("ticket");
-                                      setShowSortDropdown(false);
-                                    }}
+                                    onClick={handleSortByTicket}
                                     className={`w-full px-3 py-2 text-left text-xs hover:bg-[#F8F9FB] transition-colors ${
                                       sortBy === "ticket"
                                         ? "bg-[#EFF6FF] text-[#3B82F6]"
@@ -700,10 +758,7 @@ export const DashboardPage = (): JSX.Element => {
                                     Ticket Number
                                   </button>
                                   <button
-                                    onClick={() => {
-                                      setSortBy("priority");
-                                      setShowSortDropdown(false);
-                                    }}
+                                    onClick={handleSortByPriority}
                                     className={`w-full px-3 py-2 text-left text-xs hover:bg-[#F8F9FB] transition-colors ${
                                       sortBy === "priority"
                                         ? "bg-[#EFF6FF] text-[#3B82F6]"
@@ -713,10 +768,7 @@ export const DashboardPage = (): JSX.Element => {
                                     Priority
                                   </button>
                                   <button
-                                    onClick={() => {
-                                      setSortBy("severity");
-                                      setShowSortDropdown(false);
-                                    }}
+                                    onClick={handleSortBySeverity}
                                     className={`w-full px-3 py-2 text-left text-xs hover:bg-[#F8F9FB] transition-colors ${
                                       sortBy === "severity"
                                         ? "bg-[#EFF6FF] text-[#3B82F6]"
@@ -913,6 +965,7 @@ export const DashboardPage = (): JSX.Element => {
                     onKeyDown={(e) => e.key === "Enter" && handleCopilotSend()}
                     placeholder="Type ticket number, device name, username, or ask for 'my tickets'..."
                     className="border-0 shadow-none p-0 h-auto [font-family:'Arial-Regular',Helvetica] font-normal text-[#717182] text-xs placeholder:text-[#717182] focus-visible:ring-0"
+                    aria-label="Message Copilot"
                   />
                 </div>
                 <Button
@@ -920,6 +973,7 @@ export const DashboardPage = (): JSX.Element => {
                   onClick={handleCopilotSend}
                   disabled={!copilotMessage.trim()}
                   className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Send message"
                 >
                   <SendIcon className="w-5 h-5 text-white" />
                 </Button>
